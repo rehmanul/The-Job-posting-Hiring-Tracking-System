@@ -1,0 +1,102 @@
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+🚀 Starting Job Tracker Application...
+⚠️ GOOGLE_SHEETS_ID not found - Google Sheets integration will be disabled
+Mock jobTracker initialized
+Mock healthMonitor initialized
+Mock scheduler initialized
+Mock scheduler started
+✅ All services initialized successfully
+📊 Loaded 1 companies for tracking
+⚠️ GOOGLE_SHEETS_ID not provided - Google Sheets integration disabled
+⚠️ Google Sheets Integration disabled - missing credentials
+⚠️ ML Detection Service disabled - OPENAI_API_KEY not found
+⚠️ Proxy Rotation disabled - no proxy configuration found
+⚠️ Gmail credentials not provided - Email notifications disabled
+🚀 Initializing Scheduler Service...
+🚀 Initializing Job Tracker Service...
+⚠️ Google Sheets service disabled - skipping initialization
+🚀 Initializing LinkedIn scraper...
+❌ Failed to launch browser: Error: Failed to launch the browser process!
+/home/runner/.cache/puppeteer/chrome/linux-139.0.7258.66/chrome-linux64/chrome: error while loading shared libraries: libcups.so.2: cannot open shared object file: No such file or directory
+
+
+TROUBLESHOOTING: https://pptr.dev/troubleshooting
+
+    at Interface.onClose (/home/runner/workspace/node_modules/@puppeteer/browsers/src/launch.ts:507:11)
+    at Interface.emit (node:events:536:35)
+    at Interface.close (node:internal/readline/interface:527:10)
+    at Socket.onend (node:internal/readline/interface:253:10)
+    at Socket.emit (node:events:536:35)
+    at endReadableNT (node:internal/streams/readable:1698:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:82:21)
+❌ Failed to initialize LinkedIn scraper: Error: Failed to launch the browser process!
+/home/runner/.cache/puppeteer/chrome/linux-139.0.7258.66/chrome-linux64/chrome: error while loading shared libraries: libcups.so.2: cannot open shared object file: No such file or directory
+
+
+TROUBLESHOOTING: https://pptr.dev/troubleshooting
+
+    at Interface.onClose (/home/runner/workspace/node_modules/@puppeteer/browsers/src/launch.ts:507:11)
+    at Interface.emit (node:events:536:35)
+    at Interface.close (node:internal/readline/interface:527:10)
+    at Socket.onend (node:internal/readline/interface:253:10)
+    at Socket.emit (node:events:536:35)
+    at endReadableNT (node:internal/streams/readable:1698:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:82:21)
+⚠️ LinkedIn scraper disabled due to browser launch failure
+✅ LinkedIn scraper initialized successfully
+⚠️ Google Sheets service not available for company sync
+⚠️ No companies loaded from Google Sheets. Please check your sheet configuration.
+📋 Expected sheet format: "Company Data" with columns: Company Name, Website, LinkedIn URL, LinkedIn Career Page URL, Is Active, Last Scanned
+✅ Added sample company for testing
+✅ Job Tracker Service initialized
+⚠️ GOOGLE_SHEETS_ID not provided - Google Sheets integration disabled
+⚠️ Google Sheets service disabled - skipping initialization
+✅ Health Monitor Service initialized
+✅ Scheduler Service initialized
+▶️ Starting scheduled tasks...
+📅 Scheduling tasks:
+   - Job postings: every 15 minutes
+   - New hires: every 60 minutes
+   - Analytics: every 30 minutes
+▶️ Job tracking started
+❌ Failed to send system message to Slack: Error: An API error occurred: missing_scope
+    at platformErrorFromResult (/home/runner/workspace/node_modules/@slack/web-api/src/errors.ts:119:5)
+    at WebClient.<anonymous> (/home/runner/workspace/node_modules/@slack/web-api/src/WebClient.ts:406:36)
+    at Generator.next (<anonymous>)
+    at fulfilled (/home/runner/workspace/node_modules/@slack/web-api/dist/WebClient.js:38:58)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+  code: 'slack_webapi_platform_error',
+  data: {
+    ok: false,
+    error: 'missing_scope',
+    needed: 'chat:write:bot',
+    provided: 'incoming-webhook',
+    response_metadata: { scopes: [Array], acceptedScopes: [Array] }
+  }
+}
+✅ All scheduled tasks started
+9:21:41 AM [express] serving on port 5000
+Error:   Failed to scan for dependencies from entries:
+  /home/runner/workspace/client/index.html
+
+  ✘ [ERROR] Expected "}" but found ":"
+
+    client/src/main.tsx:9:16:
+      9 │   defaultOptions: {
+        │                 ^
+        ╵                 }
+
+
+    at failureErrorWithLog (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:1472:15)
+    at /home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:945:25
+    at runOnEndCallbacks (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:1315:45)
+    at buildResponseToResult (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:943:7)
+    at /home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:955:9
+    at new Promise (<anonymous>)
+    at requestCallbacks.on-end (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:954:54)
+    at handleRequest (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:647:17)
+    at handleIncomingPacket (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:672:7)
+    at Socket.readFromStdout (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:600:7)
