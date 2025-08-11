@@ -16,7 +16,6 @@ export interface IStorage {
   addCompany(company: InsertCompany): Promise<Company>;
   updateCompany(id: string, updates: Partial<InsertCompany>): Promise<Company | undefined>;
   deleteCompany(id: string): Promise<boolean>;
-  clearSampleCompanies(): Promise<void>;
   syncCompaniesFromGoogleSheets(companiesData: any[]): Promise<void>;
 
   // Job Postings
@@ -86,11 +85,6 @@ export class MemStorage implements IStorage {
     return this.createCompany(insertCompany);
   }
 
-  async clearSampleCompanies(): Promise<void> {
-    // Clear existing companies to load fresh from Google Sheets
-    this.companies.clear();
-  }
-
   async updateCompany(id: string, updates: Partial<InsertCompany>): Promise<Company | undefined> {
     const company = this.companies.get(id);
     if (!company) return undefined;
@@ -110,9 +104,9 @@ export class MemStorage implements IStorage {
         console.warn('⚠️ Google Sheets service not available for company sync');
         return;
       }
-      
+
       const companiesData = await googleSheetsService.getCompaniesData();
-      
+
       for (const companyData of companiesData) {
         await this.createCompany({
           name: companyData.name || companyData['Company Name'],
@@ -121,7 +115,7 @@ export class MemStorage implements IStorage {
           isActive: companyData.isActive !== false && companyData['Is Active'] !== false,
         });
       }
-      
+
       console.log(`✅ Synced ${companiesData.length} companies from Google Sheets`);
     } catch (error) {
       console.error('❌ Failed to sync companies from Google Sheets:', error);

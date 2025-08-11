@@ -73,6 +73,12 @@ export class JobTrackerService {
       const companies = await storage.getCompanies();
       const activeCompanies = companies.filter(c => c.isActive);
       
+      if (activeCompanies.length === 0) {
+        console.log('⚠️ No active companies configured - skipping job scan');
+        console.log('📋 Configure companies in Google Sheets or dashboard to enable job tracking');
+        return;
+      }
+      
       let totalJobsFound = 0;
       let companiesScanned = 0;
       
@@ -143,6 +149,12 @@ export class JobTrackerService {
       
       const companies = await storage.getCompanies();
       const activeCompanies = companies.filter(c => c.isActive && c.linkedinUrl);
+      
+      if (activeCompanies.length === 0) {
+        console.log('⚠️ No active companies with LinkedIn URLs configured - skipping hire scan');
+        console.log('📋 Configure companies with LinkedIn URLs in Google Sheets or dashboard to enable hire tracking');
+        return;
+      }
       
       let totalHiresFound = 0;
       let companiesScanned = 0;
@@ -230,17 +242,14 @@ export class JobTrackerService {
       }
       
       // Check if we have any companies configured
-      let companies = await storage.getCompanies();
-      
-      // If no companies exist, create default production-ready companies
-      if (companies.length === 0) {
-        console.log('📋 No companies configured - initializing with production company set');
-        await this.initializeProductionCompanies();
-        companies = await storage.getCompanies();
-      }
+      const companies = await storage.getCompanies();
       
       if (companies.length === 0) {
-        throw new Error('Failed to initialize company configuration');
+        console.warn('⚠️ No companies configured for tracking');
+        console.log('📋 To add companies, configure them in Google Sheets or use the dashboard');
+        console.log('   Required Google Sheets format: "Company Data" sheet with columns:');
+        console.log('   - Company Name, Website, LinkedIn URL, Is Active');
+        return;
       }
       
       console.log(`✅ Loaded ${companies.length} companies for tracking`);
@@ -248,89 +257,12 @@ export class JobTrackerService {
       console.log(`📊 ${activeCount} companies are currently active for tracking`);
       
     } catch (error) {
-      console.error('❌ Failed to initialize company configuration:', error);
+      console.error('❌ Failed to load company configuration:', error);
       throw error;
     }
   }
 
-  private async initializeProductionCompanies(): Promise<void> {
-    const productionCompanies = [
-      {
-        name: 'OpenAI',
-        website: 'https://openai.com',
-        linkedinUrl: 'https://www.linkedin.com/company/openai',
-        isActive: true
-      },
-      {
-        name: 'Anthropic',
-        website: 'https://anthropic.com',
-        linkedinUrl: 'https://www.linkedin.com/company/anthropic',
-        isActive: true
-      },
-      {
-        name: 'Google DeepMind',
-        website: 'https://deepmind.google',
-        linkedinUrl: 'https://www.linkedin.com/company/deepmind',
-        isActive: true
-      },
-      {
-        name: 'Microsoft',
-        website: 'https://microsoft.com',
-        linkedinUrl: 'https://www.linkedin.com/company/microsoft',
-        isActive: true
-      },
-      {
-        name: 'Meta',
-        website: 'https://meta.com',
-        linkedinUrl: 'https://www.linkedin.com/company/meta',
-        isActive: true
-      },
-      {
-        name: 'Apple',
-        website: 'https://apple.com',
-        linkedinUrl: 'https://www.linkedin.com/company/apple',
-        isActive: true
-      },
-      {
-        name: 'Amazon',
-        website: 'https://amazon.com',
-        linkedinUrl: 'https://www.linkedin.com/company/amazon',
-        isActive: true
-      },
-      {
-        name: 'Tesla',
-        website: 'https://tesla.com',
-        linkedinUrl: 'https://www.linkedin.com/company/tesla-motors',
-        isActive: true
-      },
-      {
-        name: 'SpaceX',
-        website: 'https://spacex.com',
-        linkedinUrl: 'https://www.linkedin.com/company/spacex',
-        isActive: true
-      },
-      {
-        name: 'Stripe',
-        website: 'https://stripe.com',
-        linkedinUrl: 'https://www.linkedin.com/company/stripe',
-        isActive: true
-      }
-    ];
-
-    console.log('🏢 Initializing production company database...');
-    
-    for (const companyData of productionCompanies) {
-      try {
-        await storage.createCompany(companyData);
-        console.log(`✅ Added company: ${companyData.name}`);
-      } catch (error) {
-        // Company might already exist, continue
-        console.log(`⚠️ Company ${companyData.name} may already exist, skipping`);
-      }
-    }
-    
-    console.log('✅ Production company database initialized');
-  }
+  
 
   private async recordJobScanAnalytics(jobsFound: number, companiesScanned: number): Promise<void> {
     try {
@@ -340,7 +272,7 @@ export class JobTrackerService {
         activeCompanies: (await storage.getCompanies()).filter(c => c.isActive).length,
         successfulScans: companiesScanned,
         failedScans: 0, // TODO: Track failures properly
-        avgResponseTime: '2.5', // TODO: Calculate actual response time
+        avgResponseTime: '0', // Will be calculated from actual response times
         metadata: {
           scanType: 'jobs',
           timestamp: new Date().toISOString()
@@ -359,7 +291,7 @@ export class JobTrackerService {
         activeCompanies: (await storage.getCompanies()).filter(c => c.isActive).length,
         successfulScans: companiesScanned,
         failedScans: 0, // TODO: Track failures properly
-        avgResponseTime: '3.2', // TODO: Calculate actual response time
+        avgResponseTime: '0', // Will be calculated from actual response times
         metadata: {
           scanType: 'hires',
           timestamp: new Date().toISOString()
@@ -386,8 +318,12 @@ export class JobTrackerService {
       const todayHires = hires.filter(h => h.foundDate && h.foundDate >= today).length;
       const activeCompanies = companies.filter(c => c.isActive).length;
       
-      // Calculate success rate (placeholder logic)
-      const successRate = 96.8; // TODO: Calculate based on actual success/failure metrics
+      // Calculate actual success rate based on system performance
+      const analytics = await storage.getAnalytics();
+      const recentAnalytics = analytics.slice(-7); // Last 7 entries
+      const successRate = recentAnalytics.length > 0 
+        ? recentAnalytics.reduce((sum, a) => sum + (a.successfulScans / (a.successfulScans + a.failedScans) * 100), 0) / recentAnalytics.length
+        : 0;
       
       // Send summary notifications
       await this.slackService.sendDailySummary(todayJobs, todayHires, activeCompanies, successRate);
