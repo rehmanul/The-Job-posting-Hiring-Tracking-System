@@ -7,6 +7,21 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { AdvancedCharts } from "@/components/analytics/AdvancedCharts";
 import { 
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell
+} from "recharts";
+import { 
   TrendingUp, 
   TrendingDown, 
   BarChart3, 

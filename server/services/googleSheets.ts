@@ -16,43 +16,47 @@ export class GoogleSheetsService {
   }
 
   async initialize(): Promise<void> {
-    if (!this.doc) {
-      console.warn('⚠️ Google Sheets service disabled - skipping initialization');
-      return;
-    }
-    
     try {
-      const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-      const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+      console.log('🔧 Initializing Google Sheets service...');
 
-      if (!serviceAccountEmail || !privateKey) {
-        console.warn('⚠️ Google Sheets credentials not provided - service disabled');
-        return;
+      if (!this.spreadsheetId) {
+        console.error('❌ GOOGLE_SHEETS_ID environment variable not set');
+        console.log('📝 Available environment variables:', Object.keys(process.env).filter(key => key.includes('GOOGLE')));
+        throw new Error('Google Sheets ID not configured');
       }
 
-      // Use service account authentication
-      await this.doc.useServiceAccountAuth({
-        client_email: serviceAccountEmail,
-        private_key: privateKey,
+      console.log('🔑 Attempting to authorize Google Sheets access...');
+      await this.auth.authorize();
+      this.sheets = google.sheets({ version: 'v4', auth: this.auth });
+
+      console.log('🔍 Testing Google Sheets connection...');
+      // Test the connection
+      const response = await this.sheets.spreadsheets.get({
+        spreadsheetId: this.spreadsheetId,
       });
 
-      await this.doc.loadInfo();
-      
-      // Ensure required sheets exist
-      await this.ensureSheets();
-      
+      console.log(`✅ Connected to Google Sheet: ${response.data.properties?.title}`);
+
+      // Test reading companies
+      console.log('📋 Testing companies data retrieval...');
+      const companies = await this.getCompanies();
+      console.log(`📊 Found ${companies.length} companies in sheet`);
+
       this.isInitialized = true;
-      console.log('✅ Google Sheets service initialized');
     } catch (error) {
-      console.error('❌ Failed to initialize Google Sheets service:', error);
-      // Don't throw - let system continue without Google Sheets
-      this.isInitialized = false;
+      console.error('❌ Failed to initialize Google Sheets:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        spreadsheetId: this.spreadsheetId ? 'Set' : 'Not set'
+      });
+      throw error;
     }
   }
 
   private async ensureSheets(): Promise<void> {
     if (!this.doc) return;
-    
+
     const requiredSheets = [
       'Company Data',
       'Job Postings', 
@@ -62,7 +66,7 @@ export class GoogleSheetsService {
     ];
 
     const existingTitles = this.doc.sheetsByIndex.map(sheet => sheet.title);
-    
+
     for (const sheetTitle of requiredSheets) {
       if (!existingTitles.includes(sheetTitle)) {
         await this.doc.addSheet({ 
@@ -147,11 +151,11 @@ export class GoogleSheetsService {
 
   async syncCompany(company: Company): Promise<void> {
     if (!this.doc || !this.isInitialized) return;
-    
+
     try {
       const sheet = this.doc.sheetsByTitle['Company Data'];
       if (!sheet) return;
-      
+
       await sheet.addRow({
         'Name': company.name,
         'Website': company.website || '',
@@ -169,11 +173,11 @@ export class GoogleSheetsService {
 
   async syncJobPosting(job: JobPosting): Promise<void> {
     if (!this.doc || !this.isInitialized) return;
-    
+
     try {
       const sheet = this.doc.sheetsByTitle['Job Postings'];
       if (!sheet) return;
-      
+
       await sheet.addRow({
         'Company': job.company,
         'Job Title': job.jobTitle,
@@ -192,11 +196,11 @@ export class GoogleSheetsService {
 
   async syncNewHire(hire: NewHire): Promise<void> {
     if (!this.doc || !this.isInitialized) return;
-    
+
     try {
       const sheet = this.doc.sheetsByTitle['New Hires'];
       if (!sheet) return;
-      
+
       await sheet.addRow({
         'Person Name': hire.personName,
         'Company': hire.company,
@@ -214,11 +218,11 @@ export class GoogleSheetsService {
 
   async syncAnalytics(analytics: Analytics): Promise<void> {
     if (!this.doc || !this.isInitialized) return;
-    
+
     try {
       const sheet = this.doc.sheetsByTitle['Analytics'];
       if (!sheet) return;
-      
+
       await sheet.addRow({
         'Date': analytics.date ? analytics.date.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         'Total Companies': analytics.totalCompanies || 0,
@@ -236,11 +240,11 @@ export class GoogleSheetsService {
 
   async syncHealthMetric(metric: HealthMetric): Promise<void> {
     if (!this.doc || !this.isInitialized) return;
-    
+
     try {
       const sheet = this.doc.sheetsByTitle['Health Metrics'];
       if (!sheet) return;
-      
+
       await sheet.addRow({
         'Timestamp': metric.timestamp ? metric.timestamp.toISOString() : new Date().toISOString(),
         'Service': metric.service,
