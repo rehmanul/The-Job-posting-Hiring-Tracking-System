@@ -13,7 +13,7 @@ export class LinkedInScraper {
   private proxyService: ProxyRotationService;
 
   private readonly browserConfig = {
-    headless: process.env.NODE_ENV === 'production',
+    headless: true, // Always headless in production environment
     defaultViewport: { width: 1366, height: 768 },
     args: [
       '--no-sandbox',
@@ -26,7 +26,12 @@ export class LinkedInScraper {
       '--disable-gpu',
       '--disable-web-security',
       '--disable-features=VizDisplayCompositor',
-      '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      '--disable-extensions',
+      '--disable-ipc-flooding-protection',
+      '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     ]
   };
 

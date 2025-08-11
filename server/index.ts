@@ -60,23 +60,53 @@ async function startServer() {
       console.log('✅ Google Sheets credentials found');
     }
 
-    // Initialize services
-    await jobTracker.initialize();
-    await healthMonitor.initialize();
-    await scheduler.initialize();
+    // Initialize services with error handling
+    let serviceErrors = [];
 
-    // Start the scheduler
-    scheduler.start();
+    try {
+      await jobTracker.initialize();
+      console.log('✅ Job Tracker Service initialized');
+    } catch (error) {
+      console.error('⚠️ Job Tracker Service failed to initialize:', error);
+      serviceErrors.push('JobTracker');
+    }
 
-    console.log('✅ All services initialized successfully');
+    try {
+      await healthMonitor.initialize();
+      console.log('✅ Health Monitor Service initialized');
+    } catch (error) {
+      console.error('⚠️ Health Monitor Service failed to initialize:', error);
+      serviceErrors.push('HealthMonitor');
+    }
 
-    // Verify companies were loaded
-    const companies = await storage.getCompanies();
-    console.log(`📊 Loaded ${companies.length} companies for tracking`);
+    try {
+      await scheduler.initialize();
+      scheduler.start();
+      console.log('✅ Scheduler Service initialized and started');
+    } catch (error) {
+      console.error('⚠️ Scheduler Service failed to initialize:', error);
+      serviceErrors.push('Scheduler');
+    }
+
+    if (serviceErrors.length > 0) {
+      console.warn(`⚠️ Some services failed to initialize: ${serviceErrors.join(', ')}`);
+      console.warn('🔧 System will continue running with available services');
+    }
+
+    console.log('✅ Application started successfully');
+
+    // Try to verify companies were loaded
+    try {
+      const companies = await storage.getCompanies();
+      console.log(`📊 System configured with ${companies.length} companies for tracking`);
+    } catch (error) {
+      console.warn('⚠️ Could not verify company configuration:', error);
+    }
 
   } catch (error) {
-    console.error('❌ Failed to start application:', error);
-    process.exit(1);
+    console.error('❌ Critical failure during application startup:', error);
+    console.warn('🔧 Attempting to start web server anyway...');
+    // Don't exit, let the web server start so users can access the dashboard
   }
 }
 
