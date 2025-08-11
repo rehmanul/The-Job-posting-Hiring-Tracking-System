@@ -224,32 +224,18 @@ export class JobTrackerService {
       
       const companies = await storage.getCompanies();
       if (companies.length === 0) {
-        console.warn('⚠️ No companies loaded from Google Sheets. Please check your sheet configuration.');
-        console.warn('📋 Expected sheet format: "Company Data" with columns: Company Name, Website, LinkedIn URL, LinkedIn Career Page URL, Is Active, Last Scanned');
-        
-        // Add a sample company if none exist
-        await storage.createCompany({
-          name: "Sample Company",
-          website: "https://example.com",
-          linkedinUrl: "https://linkedin.com/company/sample",
-          isActive: true
-        });
-        console.log('✅ Added sample company for testing');
+        console.error('❌ No companies configured for tracking!');
+        console.error('📋 Please configure companies in your Google Sheets with format:');
+        console.error('   Sheet: "Company Data" with columns: Company Name, Website, LinkedIn URL, Is Active');
+        console.error('🔗 Google Sheets ID required in GOOGLE_SHEETS_ID environment variable');
+        throw new Error('No companies configured - system cannot operate without target companies');
       }
-    } catch (error) {
-      console.warn('⚠️ Failed to load companies from Google Sheets, continuing with sample data:', error);
       
-      // Ensure at least one company exists for testing
-      const existingCompanies = await storage.getCompanies();
-      if (existingCompanies.length === 0) {
-        await storage.createCompany({
-          name: "Sample Company",
-          website: "https://example.com", 
-          linkedinUrl: "https://linkedin.com/company/sample",
-          isActive: true
-        });
-        console.log('✅ Added sample company for testing');
-      }
+      console.log(`✅ Loaded ${companies.length} companies from Google Sheets`);
+    } catch (error) {
+      console.error('❌ Critical error: Cannot load companies from Google Sheets:', error);
+      console.error('🛑 System requires proper company configuration to function');
+      throw error;
     }
   }
 

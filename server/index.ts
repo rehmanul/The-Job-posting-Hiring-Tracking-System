@@ -2,12 +2,14 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
-// Assuming jobTracker, healthMonitor, scheduler, and storage are imported from their respective modules
-// For the purpose of this example, we'll mock them to satisfy the startServer function's requirements.
-const jobTracker = { initialize: async () => console.log('Mock jobTracker initialized') };
-const healthMonitor = { initialize: async () => console.log('Mock healthMonitor initialized') };
-const scheduler = { initialize: async () => console.log('Mock scheduler initialized'), start: () => console.log('Mock scheduler started') };
-const storage = { getCompanies: async () => [{ id: 1, name: 'Sample Company' }] };
+import { JobTrackerService } from './services/jobTracker';
+import { HealthMonitorService } from './services/healthMonitor';
+import { SchedulerService } from './scheduler';
+import { storage } from './storage';
+
+const jobTracker = new JobTrackerService();
+const healthMonitor = new HealthMonitorService();
+const scheduler = new SchedulerService();
 
 
 const app = express();

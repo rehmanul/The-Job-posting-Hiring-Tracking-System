@@ -1,207 +1,250 @@
 import OpenAI from "openai";
 import { InsertJobPosting, InsertNewHire } from "../../shared/schema";
 
-// the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-
 export class MLDetectionService {
-  private isEnabled: boolean;
-  private openai: OpenAI | null = null;
+  private isEnabled = false;
+  private openAIClient: OpenAI | null = null;
+  private isInitialized = false;
 
-  constructor() {
-    this.isEnabled = !!process.env.OPENAI_API_KEY;
-    if (this.isEnabled) {
-      this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      console.log('🤖 ML Detection Service initialized with OpenAI GPT-4o');
-    } else {
-      console.warn('⚠️ ML Detection Service disabled - OPENAI_API_KEY not found');
+  async initialize(): Promise<void> {
+    try {
+      console.log('🤖 Initializing ML Detection Service...');
+
+      if (!process.env.OPENAI_API_KEY) {
+        console.warn('⚠️ ML Detection Service disabled - OPENAI_API_KEY not found');
+        this.isEnabled = false;
+        this.isInitialized = true;
+        return;
+      }
+
+      this.openAIClient = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY
+      });
+
+      // Test API connection
+      await this.testConnection();
+
+      this.isEnabled = true;
+      this.isInitialized = true;
+
+      console.log('✅ ML Detection Service initialized successfully');
+
+    } catch (error) {
+      console.error('❌ Failed to initialize ML Detection Service:', error);
+      this.isEnabled = false;
+      this.isInitialized = true;
     }
   }
 
-  async enhanceJobDetection(rawJobData: any, context: string): Promise<Partial<InsertJobPosting> & { confidenceScore: string }> {
-    if (!this.isEnabled) {
+  private async testConnection(): Promise<void> {
+    if (!this.openAIClient) throw new Error('OpenAI client not initialized');
+
+    try {
+      await this.openAIClient.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [{ role: 'user', content: 'test' }],
+        max_tokens: 1
+      });
+    } catch (error) {
+      throw new Error(`OpenAI API test failed: ${(error as Error).message}`);
+    }
+  }
+
+  async classifyJob(jobTitle: string, jobDescription: string): Promise<{
+    department: string;
+    seniority: string;
+    skills: string[];
+    remote: boolean;
+    confidence: number;
+  }> {
+    if (!this.isEnabled || !this.openAIClient) {
+      // Fallback classification using keyword matching
+      return this.fallbackClassification(jobTitle, jobDescription);
+    }
+
+    try {
+      const prompt = `Analyze this job posting and classify it:
+
+Job Title: ${jobTitle}
+Job Description: ${jobDescription.slice(0, 1000)}
+
+Return a JSON object with:
+- department: (Engineering, Marketing, Sales, HR, Finance, Operations, Design, Data, Product, Customer Success, Legal, Executive, Other)
+- seniority: (Entry, Mid, Senior, Lead, Manager, Director, VP, Executive)
+- skills: array of up to 5 key technical skills mentioned
+- remote: boolean if mentions remote/hybrid work
+- confidence: float 0-1 indicating classification confidence
+
+Example: {"department": "Engineering", "seniority": "Senior", "skills": ["React", "Node.js", "TypeScript"], "remote": true, "confidence": 0.9}`;
+
+      const response = await this.openAIClient.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 200,
+        temperature: 0.1
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) throw new Error('No response content');
+
+      const classification = JSON.parse(content);
+
+      // Validate response structure
+      if (!classification.department || !classification.seniority) {
+        throw new Error('Invalid classification response');
+      }
+
       return {
-        ...rawJobData,
-        confidenceScore: '50' // Base confidence without ML
+        department: classification.department,
+        seniority: classification.seniority,
+        skills: classification.skills || [],
+        remote: classification.remote || false,
+        confidence: classification.confidence || 0.8
+      };
+
+    } catch (error) {
+      console.warn('⚠️ ML classification failed, using fallback:', error);
+      return this.fallbackClassification(jobTitle, jobDescription);
+    }
+  }
+
+  private fallbackClassification(jobTitle: string, jobDescription: string): {
+    department: string;
+    seniority: string;
+    skills: string[];
+    remote: boolean;
+    confidence: number;
+  } {
+    const titleLower = jobTitle.toLowerCase();
+    const descLower = jobDescription.toLowerCase();
+    const combined = `${titleLower} ${descLower}`;
+
+    // Department classification
+    let department = 'Other';
+    if (this.containsAny(combined, ['engineer', 'developer', 'software', 'full stack', 'backend', 'frontend', 'devops', 'sre', 'architect'])) {
+      department = 'Engineering';
+    } else if (this.containsAny(combined, ['marketing', 'content', 'seo', 'campaign', 'brand', 'growth'])) {
+      department = 'Marketing';
+    } else if (this.containsAny(combined, ['sales', 'account', 'business development', 'revenue'])) {
+      department = 'Sales';
+    } else if (this.containsAny(combined, ['data', 'analytics', 'scientist', 'analyst', 'bi', 'ml', 'ai'])) {
+      department = 'Data';
+    } else if (this.containsAny(combined, ['product', 'pm', 'product manager'])) {
+      department = 'Product';
+    } else if (this.containsAny(combined, ['design', 'ui', 'ux', 'visual', 'creative'])) {
+      department = 'Design';
+    } else if (this.containsAny(combined, ['hr', 'human resources', 'people', 'talent', 'recruiter'])) {
+      department = 'HR';
+    }
+
+    // Seniority classification
+    let seniority = 'Mid';
+    if (this.containsAny(combined, ['intern', 'junior', 'entry', 'graduate', 'associate'])) {
+      seniority = 'Entry';
+    } else if (this.containsAny(combined, ['senior', 'sr.', 'lead', 'principal', 'staff'])) {
+      seniority = 'Senior';
+    } else if (this.containsAny(combined, ['manager', 'head of', 'team lead'])) {
+      seniority = 'Manager';
+    } else if (this.containsAny(combined, ['director', 'vp', 'vice president', 'chief'])) {
+      seniority = 'Director';
+    }
+
+    // Skills extraction (basic keyword matching)
+    const skillKeywords = [
+      'javascript', 'typescript', 'react', 'node.js', 'python', 'java', 'c++', 'go', 'rust',
+      'aws', 'azure', 'gcp', 'docker', 'kubernetes', 'terraform', 'git', 'sql', 'mongodb',
+      'redis', 'elasticsearch', 'kafka', 'microservices', 'rest', 'graphql', 'machine learning',
+      'tensorflow', 'pytorch', 'pandas', 'numpy', 'spark', 'hadoop', 'tableau', 'power bi'
+    ];
+
+    const skills = skillKeywords.filter(skill => 
+      combined.includes(skill.toLowerCase())
+    ).slice(0, 5);
+
+    // Remote work detection
+    const remote = this.containsAny(combined, ['remote', 'hybrid', 'work from home', 'distributed']);
+
+    return {
+      department,
+      seniority,
+      skills,
+      remote,
+      confidence: 0.6 // Lower confidence for fallback
+    };
+  }
+
+  private containsAny(text: string, keywords: string[]): boolean {
+    return keywords.some(keyword => text.includes(keyword.toLowerCase()));
+  }
+
+  async detectDuplicateJob(
+    newJob: { jobTitle: string; company: string; description?: string },
+    existingJobs: Array<{ jobTitle: string; company: string; description?: string }>
+  ): Promise<{ isDuplicate: boolean; similarity: number; matchedJob?: any }> {
+
+    if (!this.isEnabled || !this.openAIClient) {
+      // Simple fallback duplicate detection
+      const exactMatch = existingJobs.find(job => 
+        job.jobTitle.toLowerCase() === newJob.jobTitle.toLowerCase() &&
+        job.company.toLowerCase() === newJob.company.toLowerCase()
+      );
+
+      return {
+        isDuplicate: !!exactMatch,
+        similarity: exactMatch ? 1.0 : 0.0,
+        matchedJob: exactMatch
       };
     }
 
     try {
-      const prompt = `Analyze this job posting data and enhance it with ML detection. 
-      
-Raw data: ${JSON.stringify(rawJobData)}
-Context: ${context}
+      // Use semantic similarity for more accurate duplicate detection
+      for (const existingJob of existingJobs) {
+        const similarity = await this.calculateSimilarity(newJob, existingJob);
 
-Please analyze and return a JSON object with these fields:
-- jobTitle: cleaned and standardized job title
-- department: inferred department/team
-- seniorityLevel: entry/mid/senior/executive
-- jobType: full-time/part-time/contract/internship
-- isRemote: true/false
-- confidenceScore: 0-100 score for detection accuracy
-- skillsRequired: array of key skills mentioned
-- salaryRange: estimated salary range if determinable
-- urgency: low/medium/high based on posting language
+        if (similarity > 0.85) { // High similarity threshold
+          return {
+            isDuplicate: true,
+            similarity,
+            matchedJob: existingJob
+          };
+        }
+      }
 
-Focus on accurate detection and classification.`;
-
-      const response = await this.openai!.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content: "You are an expert job posting analyzer. Provide accurate, production-ready job classification and enhancement."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.1, // Low temperature for consistent results
-      });
-
-      const enhanced = JSON.parse(response.choices[0].message.content || '{}');
-
-      return {
-        jobTitle: enhanced.jobTitle || rawJobData.jobTitle,
-        department: enhanced.department || rawJobData.department,
-        location: rawJobData.location,
-        postedDate: rawJobData.postedDate,
-        url: rawJobData.url,
-        source: rawJobData.source,
-        confidenceScore: enhanced.confidenceScore?.toString() || '85',
-        // Additional ML-enhanced fields
-        seniorityLevel: enhanced.seniorityLevel,
-        jobType: enhanced.jobType,
-        isRemote: enhanced.isRemote,
-        skillsRequired: enhanced.skillsRequired,
-        salaryRange: enhanced.salaryRange,
-        urgency: enhanced.urgency
-      };
+      return { isDuplicate: false, similarity: 0.0 };
 
     } catch (error) {
-      console.error('❌ ML job enhancement failed:', (error as Error).message);
-      return {
-        ...rawJobData,
-        confidenceScore: '60' // Fallback confidence
-      };
+      console.warn('⚠️ Duplicate detection failed:', error);
+      return { isDuplicate: false, similarity: 0.0 };
     }
   }
 
-  async enhanceHireDetection(rawHireData: any, context: string): Promise<Partial<InsertNewHire> & { confidenceScore: string }> {
-    if (!this.isEnabled) {
-      return {
-        ...rawHireData,
-        confidenceScore: '50'
-      };
-    }
+  private async calculateSimilarity(job1: any, job2: any): Promise<number> {
+    if (!this.openAIClient) return 0;
 
     try {
-      const prompt = `Analyze this new hire data and enhance it with ML detection.
-      
-Raw data: ${JSON.stringify(rawHireData)}
-Context: ${context}
+      const prompt = `Compare these two job postings and rate their similarity from 0.0 to 1.0:
 
-Please analyze and return a JSON object with these fields:
-- personName: cleaned name
-- position: standardized job title
-- department: inferred department
-- seniorityLevel: entry/mid/senior/executive
-- isExecutive: true/false if C-level or VP+
-- confidenceScore: 0-100 score for detection accuracy
-- previousCompany: if mentioned in bio
-- startDate: estimated start date
-- linkedinProfile: cleaned LinkedIn URL
+Job 1: ${job1.jobTitle} at ${job1.company}
+Description: ${job1.description?.slice(0, 300) || 'N/A'}
 
-Focus on accurate hire detection and person classification.`;
+Job 2: ${job2.jobTitle} at ${job2.company}
+Description: ${job2.description?.slice(0, 300) || 'N/A'}
 
-      const response = await this.openai!.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content: "You are an expert hiring pattern analyzer. Provide accurate, production-ready hire classification."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.1,
+Return only a number between 0.0 and 1.0 representing similarity (1.0 = identical, 0.0 = completely different).`;
+
+      const response = await this.openAIClient.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 10,
+        temperature: 0.1
       });
 
-      const enhanced = JSON.parse(response.choices[0].message.content || '{}');
-
-      return {
-        personName: enhanced.personName || rawHireData.personName,
-        position: enhanced.position || rawHireData.position,
-        company: rawHireData.company,
-        startDate: enhanced.startDate || rawHireData.startDate,
-        source: rawHireData.source,
-        linkedinProfile: enhanced.linkedinProfile || rawHireData.linkedinProfile,
-        confidenceScore: enhanced.confidenceScore?.toString() || '85',
-        // Additional ML-enhanced fields
-        department: enhanced.department,
-        seniorityLevel: enhanced.seniorityLevel,
-        isExecutive: enhanced.isExecutive,
-        previousCompany: enhanced.previousCompany
-      };
+      const similarity = parseFloat(response.choices[0]?.message?.content || '0');
+      return Math.max(0, Math.min(1, similarity)); // Clamp between 0 and 1
 
     } catch (error) {
-      console.error('❌ ML hire enhancement failed:', (error as Error).message);
-      return {
-        ...rawHireData,
-        confidenceScore: '60'
-      };
-    }
-  }
-
-  async detectJobPostingAnomaly(jobData: InsertJobPosting): Promise<{ isAnomaly: boolean; reason?: string; confidence: number }> {
-    if (!this.isEnabled) {
-      return { isAnomaly: false, confidence: 50 };
-    }
-
-    try {
-      const prompt = `Analyze this job posting for anomalies that might indicate spam, fake jobs, or data quality issues:
-
-Job Data: ${JSON.stringify(jobData)}
-
-Return JSON with:
-- isAnomaly: boolean
-- reason: string explanation if anomaly detected
-- confidence: 0-100 confidence in anomaly detection
-- suggestions: array of improvement suggestions
-
-Look for: unrealistic requirements, spam indicators, formatting issues, suspicious patterns.`;
-
-      const response = await this.openai!.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content: "You are an expert at detecting fake or low-quality job postings. Be thorough but not overly strict."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.2,
-      });
-
-      const result = JSON.parse(response.choices[0].message.content || '{}');
-      
-      return {
-        isAnomaly: result.isAnomaly || false,
-        reason: result.reason,
-        confidence: result.confidence || 70
-      };
-
-    } catch (error) {
-      console.error('❌ ML anomaly detection failed:', (error as Error).message);
-      return { isAnomaly: false, confidence: 50 };
+      console.warn('⚠️ Similarity calculation failed:', error);
+      return 0;
     }
   }
 }

@@ -1,12 +1,12 @@
 import { EventEmitter } from 'events';
+import axios from 'axios';
 
-interface ProxyConfig {
+interface Proxy {
   host: string;
   port: number;
   username?: string;
   password?: string;
   protocol: 'http' | 'https' | 'socks4' | 'socks5';
-  country?: string;
   isActive: boolean;
   lastUsed: number;
   failureCount: number;
@@ -14,21 +14,34 @@ interface ProxyConfig {
 }
 
 export class ProxyRotationService extends EventEmitter {
-  private proxies: ProxyConfig[] = [];
-  private currentProxyIndex = 0;
-  private maxFailures = 3;
-  private rotationInterval = 30000; // 30 seconds
-  private isEnabled: boolean;
+  private proxies: Proxy[] = [];
+  private currentIndex = 0;
+  private isEnabled = false;
+  private healthCheckInterval: NodeJS.Timeout | null = null;
 
-  constructor() {
-    super();
-    this.isEnabled = !!process.env.PROXY_LIST || !!process.env.PROXY_SERVICE_URL;
-    
-    if (this.isEnabled) {
-      this.initializeProxies();
-      console.log('🔄 Proxy Rotation Service initialized');
-    } else {
-      console.warn('⚠️ Proxy Rotation disabled - no proxy configuration found');
+  async initialize(): Promise<void> {
+    try {
+      console.log('🔄 Initializing Proxy Rotation Service...');
+
+      await this.initializeProxies();
+
+      if (this.proxies.length === 0) {
+        console.warn('⚠️ Proxy Rotation disabled - no proxy configuration found');
+        this.isEnabled = false;
+        return;
+      }
+
+      // Test initial proxy health
+      await this.performHealthChecks();
+
+      this.startHealthChecks();
+      this.isEnabled = true;
+
+      console.log(`✅ Proxy Rotation Service initialized with ${this.proxies.length} proxies`);
+
+    } catch (error) {
+      console.error('❌ Failed to initialize Proxy Rotation Service:', error);
+      this.isEnabled = false;
     }
   }
 
@@ -38,7 +51,7 @@ export class ProxyRotationService extends EventEmitter {
       if (process.env.PROXY_LIST) {
         // Format: "host1:port1:user1:pass1,host2:port2:user2:pass2"
         const proxyStrings = process.env.PROXY_LIST.split(',');
-        
+
         for (const proxyStr of proxyStrings) {
           const [host, port, username, password] = proxyStr.trim().split(':');
           if (host && port) {
@@ -57,30 +70,73 @@ export class ProxyRotationService extends EventEmitter {
         }
       }
 
-      // Add free proxy services as backup
-      await this.loadPublicProxies();
-      
+      // Load from external proxy API services if configured
+      if (process.env.PROXY_API_URL && process.env.PROXY_API_KEY) {
+        await this.loadFromProxyAPI();
+      }
+
+      // Add reliable residential proxy services if configured
+      if (process.env.BRIGHTDATA_USERNAME && process.env.BRIGHTDATA_PASSWORD) {
+        this.addBrightDataProxies();
+      }
+
+      if (process.env.OXYLABS_USERNAME && process.env.OXYLABS_PASSWORD) {
+        this.addOxylabsProxies();
+      }
+
       console.log(`✅ Loaded ${this.proxies.length} proxies for rotation`);
-      
-      // Start health checks
-      this.startHealthChecks();
-      
+
     } catch (error) {
       console.error('❌ Failed to initialize proxies:', (error as Error).message);
     }
   }
 
-  private async loadPublicProxies(): Promise<void> {
-    // Add reliable free proxy sources as backup
-    const freeProxies = [
-      { host: '8.8.8.8', port: 3128, protocol: 'http' as const },
-      { host: '1.1.1.1', port: 80, protocol: 'http' as const },
-      // Add more free proxies from reliable sources
+  private async loadFromProxyAPI(): Promise<void> {
+    try {
+      const response = await axios.get(process.env.PROXY_API_URL!, {
+        headers: {
+          'Authorization': `Bearer ${process.env.PROXY_API_KEY}`
+        },
+        timeout: 10000
+      });
+
+      const apiProxies = response.data.proxies || response.data;
+
+      for (const proxy of apiProxies) {
+        if (proxy.host && proxy.port) {
+          this.proxies.push({
+            host: proxy.host,
+            port: parseInt(proxy.port),
+            username: proxy.username,
+            password: proxy.password,
+            protocol: proxy.protocol || 'http',
+            isActive: true,
+            lastUsed: 0,
+            failureCount: 0,
+            responseTime: 0
+          });
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to load proxies from API:', error);
+    }
+  }
+
+  private addBrightDataProxies(): void {
+    // BrightData residential proxies
+    const brightDataEndpoints = [
+      'brd-customer-hl_username-zone-residential_proxy1.zproxy.lum-superproxy.io:22225',
+      'brd-customer-hl_username-zone-datacenter_proxy1.zproxy.lum-superproxy.io:22225'
     ];
 
-    for (const proxy of freeProxies) {
+    for (const endpoint of brightDataEndpoints) {
+      const [host, port] = endpoint.split(':');
       this.proxies.push({
-        ...proxy,
+        host,
+        port: parseInt(port),
+        username: process.env.BRIGHTDATA_USERNAME,
+        password: process.env.BRIGHTDATA_PASSWORD,
+        protocol: 'http',
         isActive: true,
         lastUsed: 0,
         failureCount: 0,
@@ -89,77 +145,109 @@ export class ProxyRotationService extends EventEmitter {
     }
   }
 
-  async getNextProxy(): Promise<ProxyConfig | null> {
+  private addOxylabsProxies(): void {
+    // Oxylabs residential proxies
+    const oxylabsEndpoints = [
+      'pr.oxylabs.io:7777',
+      'dc.oxylabs.io:8001'
+    ];
+
+    for (const endpoint of oxylabsEndpoints) {
+      const [host, port] = endpoint.split(':');
+      this.proxies.push({
+        host,
+        port: parseInt(port),
+        username: process.env.OXYLABS_USERNAME,
+        password: process.env.OXYLABS_PASSWORD,
+        protocol: 'http',
+        isActive: true,
+        lastUsed: 0,
+        failureCount: 0,
+        responseTime: 0
+      });
+    }
+  }
+
+  async getNextProxy(): Promise<Proxy | null> {
     if (!this.isEnabled || this.proxies.length === 0) {
       return null;
     }
 
-    // Filter active proxies
-    const activeProxies = this.proxies.filter(p => p.isActive && p.failureCount < this.maxFailures);
-    
+    const activeProxies = this.proxies.filter(p => p.isActive);
+
     if (activeProxies.length === 0) {
-      console.warn('⚠️ No active proxies available, resetting failure counts');
-      this.proxies.forEach(p => p.failureCount = 0);
-      return this.proxies[0] || null;
+      console.warn('⚠️ No active proxies available');
+      return null;
     }
 
-    // Round-robin with least recently used preference
+    // Round-robin with preference for least recently used
     const sortedProxies = activeProxies.sort((a, b) => a.lastUsed - b.lastUsed);
     const selectedProxy = sortedProxies[0];
-    
+
     selectedProxy.lastUsed = Date.now();
-    this.currentProxyIndex = (this.currentProxyIndex + 1) % activeProxies.length;
-    
-    console.log(`🔄 Using proxy: ${selectedProxy.host}:${selectedProxy.port}`);
+
     return selectedProxy;
   }
 
-  async testProxy(proxy: ProxyConfig): Promise<boolean> {
+  async testProxy(proxy: Proxy): Promise<boolean> {
+    const startTime = Date.now();
+
     try {
-      const startTime = Date.now();
-      
-      // Test proxy with a simple HTTP request
-      const testUrl = 'http://httpbin.org/ip';
-      const proxyUrl = `${proxy.protocol}://${proxy.username ? `${proxy.username}:${proxy.password}@` : ''}${proxy.host}:${proxy.port}`;
-      
-      const response = await fetch(testUrl, {
-        method: 'GET',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        },
-        // Note: In production, you'd use a proper proxy agent here
-        signal: AbortSignal.timeout(10000) // 10 second timeout
+      const proxyConfig = {
+        host: proxy.host,
+        port: proxy.port,
+        auth: proxy.username ? {
+          username: proxy.username,
+          password: proxy.password || ''
+        } : undefined
+      };
+
+      const response = await axios.get('https://httpbin.org/ip', {
+        proxy: proxyConfig,
+        timeout: 10000
       });
 
-      if (response.ok) {
-        proxy.responseTime = Date.now() - startTime;
-        proxy.failureCount = 0;
+      const responseTime = Date.now() - startTime;
+
+      if (response.status === 200 && response.data.origin) {
         proxy.isActive = true;
+        proxy.failureCount = 0;
+        proxy.responseTime = responseTime;
+
+        console.log(`✅ Proxy ${proxy.host}:${proxy.port} is working (${responseTime}ms)`);
         return true;
-      } else {
-        throw new Error(`HTTP ${response.status}`);
       }
-      
     } catch (error) {
       proxy.failureCount++;
-      proxy.isActive = proxy.failureCount < this.maxFailures;
+      proxy.responseTime = Date.now() - startTime;
+
+      // Disable proxy after 3 consecutive failures
+      if (proxy.failureCount >= 3) {
+        proxy.isActive = false;
+        console.warn(`❌ Disabled proxy ${proxy.host}:${proxy.port} after ${proxy.failureCount} failures`);
+      }
+
       console.warn(`⚠️ Proxy test failed for ${proxy.host}:${proxy.port}:`, (error as Error).message);
-      return false;
     }
+
+    return false;
+  }
+
+  private async performHealthChecks(): Promise<void> {
+    console.log('🔍 Running proxy health checks...');
+
+    const promises = this.proxies.map(proxy => this.testProxy(proxy));
+    await Promise.allSettled(promises);
+
+    const activeCount = this.proxies.filter(p => p.isActive).length;
+    console.log(`✅ Health check complete: ${activeCount}/${this.proxies.length} proxies active`);
+
+    this.emit('healthCheck', { activeCount, totalCount: this.proxies.length });
   }
 
   private startHealthChecks(): void {
-    setInterval(async () => {
-      console.log('🔍 Running proxy health checks...');
-      
-      const promises = this.proxies.map(proxy => this.testProxy(proxy));
-      await Promise.allSettled(promises);
-      
-      const activeCount = this.proxies.filter(p => p.isActive).length;
-      console.log(`✅ Health check complete: ${activeCount}/${this.proxies.length} proxies active`);
-      
-      this.emit('healthCheck', { activeCount, totalCount: this.proxies.length });
-      
+    this.healthCheckInterval = setInterval(async () => {
+      await this.performHealthChecks();
     }, 5 * 60 * 1000); // Check every 5 minutes
   }
 
@@ -179,30 +267,24 @@ export class ProxyRotationService extends EventEmitter {
   async rotateUserAgent(): Promise<string> {
     const userAgents = [
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
-      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15'
     ];
-    
+
     return userAgents[Math.floor(Math.random() * userAgents.length)];
   }
 
-  reportProxyFailure(proxy: ProxyConfig, error: string): void {
-    proxy.failureCount++;
-    if (proxy.failureCount >= this.maxFailures) {
-      proxy.isActive = false;
-      console.warn(`🔴 Proxy ${proxy.host}:${proxy.port} disabled after ${this.maxFailures} failures`);
+  async cleanup(): Promise<void> {
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+      this.healthCheckInterval = null;
     }
-    
-    this.emit('proxyFailure', { proxy, error });
-  }
 
-  reportProxySuccess(proxy: ProxyConfig, responseTime: number): void {
-    proxy.responseTime = responseTime;
-    proxy.failureCount = Math.max(0, proxy.failureCount - 1); // Gradually recover
-    proxy.isActive = true;
-    
-    this.emit('proxySuccess', { proxy, responseTime });
+    this.proxies = [];
+    this.isEnabled = false;
+
+    console.log('🧹 Proxy Rotation Service cleanup complete');
   }
 }
