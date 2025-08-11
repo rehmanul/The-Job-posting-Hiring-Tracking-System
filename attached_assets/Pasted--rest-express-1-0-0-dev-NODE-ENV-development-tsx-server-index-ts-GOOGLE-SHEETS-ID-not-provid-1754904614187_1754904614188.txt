@@ -1,0 +1,67 @@
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+⚠️ GOOGLE_SHEETS_ID not provided - Google Sheets integration disabled
+⚠️ Google Sheets Integration disabled - missing credentials
+⚠️ Gmail credentials not provided - Email notifications disabled
+⚠️ GOOGLE_SHEETS_ID not provided - Google Sheets integration disabled
+⚠️ Google Sheets Integration disabled - missing credentials
+⚠️ Gmail credentials not provided - Email notifications disabled
+🚀 Starting Job Tracker Application...
+⚠️ GOOGLE_SHEETS_ID not found - Google Sheets integration will be disabled
+🚀 Initializing Job Tracker Service...
+⚠️ Google Sheets service disabled - skipping initialization
+🚀 Initializing LinkedIn scraper...
+❌ Failed to launch browser: Error: Failed to launch the browser process!
+/home/runner/.cache/puppeteer/chrome/linux-139.0.7258.66/chrome-linux64/chrome: error while loading shared libraries: libcups.so.2: cannot open shared object file: No such file or directory
+
+
+TROUBLESHOOTING: https://pptr.dev/troubleshooting
+
+    at Interface.onClose (/home/runner/workspace/node_modules/@puppeteer/browsers/src/launch.ts:507:11)
+    at Interface.emit (node:events:536:35)
+    at Interface.close (node:internal/readline/interface:527:10)
+    at Socket.onend (node:internal/readline/interface:253:10)
+    at Socket.emit (node:events:536:35)
+    at endReadableNT (node:internal/streams/readable:1698:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:82:21)
+❌ Failed to initialize LinkedIn scraper: Error: Failed to launch the browser process!
+/home/runner/.cache/puppeteer/chrome/linux-139.0.7258.66/chrome-linux64/chrome: error while loading shared libraries: libcups.so.2: cannot open shared object file: No such file or directory
+
+
+TROUBLESHOOTING: https://pptr.dev/troubleshooting
+
+    at Interface.onClose (/home/runner/workspace/node_modules/@puppeteer/browsers/src/launch.ts:507:11)
+    at Interface.emit (node:events:536:35)
+    at Interface.close (node:internal/readline/interface:527:10)
+    at Socket.onend (node:internal/readline/interface:253:10)
+    at Socket.emit (node:events:536:35)
+    at endReadableNT (node:internal/streams/readable:1698:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:82:21)
+⚠️ LinkedIn scraper disabled due to browser launch failure
+✅ LinkedIn scraper initialized successfully
+⚠️ Google Sheets service not available for company sync
+❌ No companies configured for tracking!
+📋 Please configure companies in your Google Sheets with format:
+   Sheet: "Company Data" with columns: Company Name, Website, LinkedIn URL, Is Active
+🔗 Google Sheets ID required in GOOGLE_SHEETS_ID environment variable
+❌ Critical error: Cannot load companies from Google Sheets: Error: No companies configured - system cannot operate without target companies
+    at JobTrackerService.loadCompaniesFromGoogleSheets (/home/runner/workspace/server/services/jobTracker.ts:231:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async JobTrackerService.initialize (/home/runner/workspace/server/services/jobTracker.ts:41:7)
+    at async startServer (/home/runner/workspace/server/index.ts:64:5)
+    at async <anonymous> (/home/runner/workspace/server/index.ts:85:3)
+🛑 System requires proper company configuration to function
+❌ Failed to initialize Job Tracker Service: Error: No companies configured - system cannot operate without target companies
+    at JobTrackerService.loadCompaniesFromGoogleSheets (/home/runner/workspace/server/services/jobTracker.ts:231:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async JobTrackerService.initialize (/home/runner/workspace/server/services/jobTracker.ts:41:7)
+    at async startServer (/home/runner/workspace/server/index.ts:64:5)
+    at async <anonymous> (/home/runner/workspace/server/index.ts:85:3)
+❌ Failed to start application: Error: No companies configured - system cannot operate without target companies
+    at JobTrackerService.loadCompaniesFromGoogleSheets (/home/runner/workspace/server/services/jobTracker.ts:231:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async JobTrackerService.initialize (/home/runner/workspace/server/services/jobTracker.ts:41:7)
+    at async startServer (/home/runner/workspace/server/index.ts:64:5)
+    at async <anonymous> (/home/runner/workspace/server/index.ts:85:3)
