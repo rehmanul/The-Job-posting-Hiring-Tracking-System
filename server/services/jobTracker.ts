@@ -43,9 +43,8 @@ export class JobTrackerService {
       // Initialize website scraper
       await this.websiteScraper.initialize();
       
-      // Clear any existing sample data and initialize target companies
+      // Clear any existing sample data - load real companies from Google Sheets only
       await storage.clearSampleCompanies();
-      await initializeTargetCompanies();
       await this.loadCompaniesFromGoogleSheets();
       
       console.log('✅ Job Tracker Service initialized');

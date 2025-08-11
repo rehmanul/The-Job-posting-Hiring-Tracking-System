@@ -1,6 +1,6 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
 import type { InsertJobPosting, Company } from '@shared/schema';
-import { MLDetectionService } from './mlDetection';
+import { GeminiService } from './geminiService';
 import { ProxyRotationService } from './proxyRotation';
 
 interface WebsiteScrapingConfig {
@@ -28,7 +28,7 @@ export class WebsiteScraper {
   private browser: Browser | null = null;
   private page: Page | null = null;
   private isInitialized = false;
-  private mlService: MLDetectionService;
+  private geminiService: GeminiService;
   private proxyService: ProxyRotationService;
 
   private readonly browserConfig = {
@@ -55,7 +55,7 @@ export class WebsiteScraper {
   };
 
   constructor() {
-    this.mlService = new MLDetectionService();
+    this.geminiService = new GeminiService();
     this.proxyService = new ProxyRotationService();
   }
 
@@ -63,7 +63,7 @@ export class WebsiteScraper {
     try {
       console.log('🌐 Initializing Website Scraper...');
 
-      await this.mlService.initialize();
+      await this.geminiService.initialize();
       await this.proxyService.initialize();
 
       this.browser = await puppeteer.launch(this.browserConfig);

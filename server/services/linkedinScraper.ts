@@ -1,6 +1,6 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
 import type { InsertJobPosting, InsertNewHire } from '@shared/schema';
-import { MLDetectionService } from './mlDetection';
+import { GeminiService } from './geminiService';
 import { ProxyRotationService } from './proxyRotation';
 
 export class LinkedInScraper {
@@ -9,7 +9,7 @@ export class LinkedInScraper {
   private isLoggedIn = false;
   private isInitialized = false;
   private isEnabled = false;
-  private mlService: MLDetectionService;
+  private geminiService: GeminiService;
   private proxyService: ProxyRotationService;
 
   private readonly browserConfig = {
@@ -37,7 +37,7 @@ export class LinkedInScraper {
   };
 
   constructor() {
-    this.mlService = new MLDetectionService();
+    this.geminiService = new GeminiService();
     this.proxyService = new ProxyRotationService();
   }
 
@@ -52,7 +52,7 @@ export class LinkedInScraper {
         return;
       }
 
-      await this.mlService.initialize();
+      await this.geminiService.initialize();
       await this.proxyService.initialize();
       
       this.browser = await puppeteer.launch(this.browserConfig);
