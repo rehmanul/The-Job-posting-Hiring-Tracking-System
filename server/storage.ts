@@ -104,6 +104,30 @@ export class MemStorage implements IStorage {
     return this.companies.delete(id);
   }
 
+  async syncCompaniesFromGoogleSheets(googleSheetsService: any): Promise<void> {
+    try {
+      if (!googleSheetsService || !googleSheetsService.getCompaniesData) {
+        console.warn('⚠️ Google Sheets service not available for company sync');
+        return;
+      }
+      
+      const companiesData = await googleSheetsService.getCompaniesData();
+      
+      for (const companyData of companiesData) {
+        await this.createCompany({
+          name: companyData.name || companyData['Company Name'],
+          website: companyData.website || companyData['Website'],
+          linkedinUrl: companyData.linkedinUrl || companyData['LinkedIn URL'],
+          isActive: companyData.isActive !== false && companyData['Is Active'] !== false,
+        });
+      }
+      
+      console.log(`✅ Synced ${companiesData.length} companies from Google Sheets`);
+    } catch (error) {
+      console.error('❌ Failed to sync companies from Google Sheets:', error);
+    }
+  }
+
   // Job Postings
   async getJobPostings(limit?: number): Promise<JobPosting[]> {
     const jobs = Array.from(this.jobPostings.values())

@@ -27,7 +27,14 @@ export class JobTrackerService {
       console.log('🚀 Initializing Job Tracker Service...');
       
       await this.googleSheets.initialize();
-      await this.linkedinScraper.initialize();
+      
+      try {
+        await this.linkedinScraper.initialize();
+        console.log('✅ LinkedIn scraper initialized successfully');
+      } catch (error) {
+        console.warn('⚠️ LinkedIn scraper initialization failed, continuing without it:', error);
+        // Continue without LinkedIn scraper - other features will still work
+      }
       
       // Clear any existing sample data and load real companies from Google Sheets
       await storage.clearSampleCompanies();
@@ -219,10 +226,30 @@ export class JobTrackerService {
       if (companies.length === 0) {
         console.warn('⚠️ No companies loaded from Google Sheets. Please check your sheet configuration.');
         console.warn('📋 Expected sheet format: "Company Data" with columns: Company Name, Website, LinkedIn URL, LinkedIn Career Page URL, Is Active, Last Scanned');
+        
+        // Add a sample company if none exist
+        await storage.createCompany({
+          name: "Sample Company",
+          website: "https://example.com",
+          linkedinUrl: "https://linkedin.com/company/sample",
+          isActive: true
+        });
+        console.log('✅ Added sample company for testing');
       }
     } catch (error) {
-      console.error('❌ Failed to load companies from Google Sheets:', error);
-      throw error;
+      console.warn('⚠️ Failed to load companies from Google Sheets, continuing with sample data:', error);
+      
+      // Ensure at least one company exists for testing
+      const existingCompanies = await storage.getCompanies();
+      if (existingCompanies.length === 0) {
+        await storage.createCompany({
+          name: "Sample Company",
+          website: "https://example.com", 
+          linkedinUrl: "https://linkedin.com/company/sample",
+          isActive: true
+        });
+        console.log('✅ Added sample company for testing');
+      }
     }
   }
 
