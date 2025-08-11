@@ -30,7 +30,7 @@ export class GoogleSheetsService {
         return;
       }
 
-      // Use service account authentication for v5
+      // Use service account authentication
       await this.doc.useServiceAccountAuth({
         client_email: serviceAccountEmail,
         private_key: privateKey,

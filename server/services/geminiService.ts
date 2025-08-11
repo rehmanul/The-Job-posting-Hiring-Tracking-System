@@ -58,7 +58,7 @@ export class GeminiService {
 
     try {
       const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
-      
+
       const prompt = `Analyze this job posting and classify it:
 
 Job Title: ${jobTitle}
@@ -116,7 +116,7 @@ Example: {"department": "Engineering", "seniority": "Senior", "skills": ["React"
 
     try {
       const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
-      
+
       const prompt = `Analyze this new hire information and classify:
 
 Person: ${personName}
@@ -220,7 +220,7 @@ Return JSON with:
 
   private classifyDepartmentFromTitle(title: string): string {
     const titleLower = title.toLowerCase();
-    
+
     if (this.containsAny(titleLower, ['engineer', 'developer', 'software', 'full stack', 'backend', 'frontend', 'devops', 'sre', 'architect'])) {
       return 'Engineering';
     } else if (this.containsAny(titleLower, ['marketing', 'content', 'seo', 'campaign', 'brand', 'growth'])) {
@@ -236,13 +236,13 @@ Return JSON with:
     } else if (this.containsAny(titleLower, ['hr', 'human resources', 'people', 'talent', 'recruiter'])) {
       return 'HR';
     }
-    
+
     return 'Other';
   }
 
   private classifySeniorityFromTitle(title: string): string {
     const titleLower = title.toLowerCase();
-    
+
     if (this.containsAny(titleLower, ['intern', 'junior', 'entry', 'graduate', 'associate'])) {
       return 'Entry';
     } else if (this.containsAny(titleLower, ['senior', 'sr.', 'lead', 'principal', 'staff'])) {
@@ -252,7 +252,7 @@ Return JSON with:
     } else if (this.containsAny(titleLower, ['director', 'vp', 'vice president', 'chief'])) {
       return 'Director';
     }
-    
+
     return 'Mid';
   }
 
@@ -304,7 +304,7 @@ Return JSON with:
 
     try {
       const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
-      
+
       const prompt = `Compare these two job postings and rate their similarity from 0.0 to 1.0:
 
 Job 1:
@@ -329,6 +329,89 @@ Return only a number between 0.0 and 1.0 representing similarity.`;
     } catch (error) {
       console.warn('⚠️ Similarity calculation failed:', error);
       return 0;
+    }
+  }
+
+  async analyzeContent(content: string): Promise<{ summary: string; topics: string[] }> {
+    if (!this.isInitialized || !this.model) {
+      return { summary: 'Analysis unavailable', topics: [] };
+    }
+
+    try {
+      const prompt = `Analyze this job posting content and provide:
+      1. A brief summary (2-3 sentences)
+      2. Key topics/skills mentioned (as array)
+
+      Content: ${content.slice(0, 1000)}
+
+      Respond in JSON format: {"summary": "...", "topics": [...]}`;
+
+      const result = await this.model.generateContent(prompt);
+      const response = result.response.text();
+
+      try {
+        return JSON.parse(response);
+      } catch {
+        return { summary: 'Analysis completed', topics: [] };
+      }
+    } catch (error) {
+      console.error('❌ Gemini analysis failed:', error);
+      return { summary: 'Analysis failed', topics: [] };
+    }
+  }
+
+  async classifyJob(jobTitle: string, jobUrl: string): Promise<{ department: string | null; confidence: number }> {
+    if (!this.isInitialized || !this.model) {
+      return { department: null, confidence: 0.7 };
+    }
+
+    try {
+      const prompt = `Classify this job title into a department category:
+      Job Title: ${jobTitle}
+
+      Common departments: Engineering, Product, Design, Marketing, Sales, Operations, HR, Finance, Legal, Customer Success, Data Science
+
+      Respond in JSON format: {"department": "...", "confidence": 0.95}`;
+
+      const result = await this.model.generateContent(prompt);
+      const response = result.response.text();
+
+      try {
+        return JSON.parse(response);
+      } catch {
+        return { department: 'Engineering', confidence: 0.7 };
+      }
+    } catch (error) {
+      console.error('❌ Job classification failed:', error);
+      return { department: null, confidence: 0.7 };
+    }
+  }
+
+  async classifyHire(personName: string, position: string): Promise<{ position: string | null; confidence: number }> {
+    if (!this.isInitialized || !this.model) {
+      return { position, confidence: 0.7 };
+    }
+
+    try {
+      const prompt = `Standardize this job position title:
+      Person: ${personName}
+      Position: ${position}
+
+      Provide a standardized position title.
+
+      Respond in JSON format: {"position": "...", "confidence": 0.95}`;
+
+      const result = await this.model.generateContent(prompt);
+      const response = result.response.text();
+
+      try {
+        return JSON.parse(response);
+      } catch {
+        return { position, confidence: 0.7 };
+      }
+    } catch (error) {
+      console.error('❌ Hire classification failed:', error);
+      return { position, confidence: 0.7 };
     }
   }
 }

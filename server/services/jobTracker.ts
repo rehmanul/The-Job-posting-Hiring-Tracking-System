@@ -233,8 +233,15 @@ export class JobTrackerService {
       }
     }
     
-    // TODO: Add website scraping and careers page scraping
-    // This would involve implementing additional scrapers for company websites
+    // Try website scraping if career page URL is available
+    if (company.careerPageUrl) {
+      try {
+        const websiteJobs = await this.websiteScraper.scrapeCompanyWebsite(company);
+        jobs.push(...websiteJobs);
+      } catch (error) {
+        console.warn(`⚠️ Website scraping failed for ${company.name}:`, error);
+      }
+    }
     
     return jobs;
   }

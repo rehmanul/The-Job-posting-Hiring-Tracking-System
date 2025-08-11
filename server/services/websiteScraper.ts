@@ -307,15 +307,15 @@ export class WebsiteScraper {
           const jobData = await this.extractJobDataFromElement(element, config, company.name);
           if (jobData) {
             // Use ML service to classify and enhance job data
-            const classification = await this.mlService.classifyJob(
+            const classification = await this.geminiService.classifyJob(
               jobData.jobTitle,
               jobData.url || ''
             );
 
             jobs.push({
               ...jobData,
-              department: classification.department,
-              confidenceScore: (classification.confidence * 100).toString()
+              department: classification.department || null,
+              confidenceScore: classification.confidence ? (classification.confidence * 100).toString() : '90'
             });
           }
         } catch (jobError) {

@@ -155,7 +155,7 @@ export class LinkedInScraper {
         try {
           const jobData = await this.extractJobData(element);
           if (jobData) {
-            const classification = await this.mlService.classifyJob(
+            const classification = await this.geminiService.classifyJob(
               jobData.jobTitle,
               jobData.url || ''
             );
@@ -164,7 +164,7 @@ export class LinkedInScraper {
               company: jobData.company,
               jobTitle: jobData.jobTitle,
               location: jobData.location,
-              department: classification.department,
+              department: classification.department || null,
               postedDate: jobData.postedDate,
               url: jobData.url,
               confidenceScore: jobData.confidenceScore,
@@ -238,7 +238,7 @@ export class LinkedInScraper {
         try {
           const hireData = await this.extractHireData(element);
           if (hireData && this.isRecentHire(hireData.startDate)) {
-            const enhancedHire = await this.mlService.classifyHire(
+            const enhancedHire = await this.geminiService.classifyHire(
               hireData.personName,
               hireData.position
             );
@@ -246,7 +246,7 @@ export class LinkedInScraper {
             hires.push({
               personName: hireData.personName,
               company: hireData.company,
-              position: enhancedHire.position,
+              position: enhancedHire.position || hireData.position,
               startDate: hireData.startDate,
               linkedinProfile: hireData.linkedinProfile,
               source: 'linkedin_scrape',
