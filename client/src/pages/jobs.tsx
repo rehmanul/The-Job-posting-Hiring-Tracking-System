@@ -6,11 +6,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Search, ExternalLink, MapPin, Building2, Calendar, Filter } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import type { JobPosting } from "@shared/schema";
 
 export default function Jobs() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCompany, setSelectedCompany] = useState("");
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
 
   const { data: jobs, isLoading } = useQuery({
     queryKey: ["/api/jobs"],
@@ -20,15 +25,21 @@ export default function Jobs() {
   const filteredJobs = jobs?.filter((job: JobPosting) => {
     const matchesSearch = !searchTerm || 
       job.jobTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.location?.toLowerCase().includes(searchTerm.toLowerCase());
-    
+      job.company.toLowerCase().includes(searchTerm.toLowerCase());
+
     const matchesCompany = !selectedCompany || job.company === selectedCompany;
-    
-    return matchesSearch && matchesCompany;
+
+    const matchesSource = selectedSources.length === 0 || selectedSources.includes(job.source);
+
+    const matchesDepartment = selectedDepartments.length === 0 || 
+      (job.department && selectedDepartments.includes(job.department));
+
+    return matchesSearch && matchesCompany && matchesSource && matchesDepartment;
   });
 
   const companies = [...new Set(jobs?.map((job: JobPosting) => job.company) || [])];
+  const sources = [...new Set(jobs?.map((job: JobPosting) => job.source) || [])];
+  const departments = [...new Set(jobs?.map((job: JobPosting) => job.department) || [])].filter(Boolean) as string[];
 
   const getConfidenceColor = (score: string) => {
     const numScore = parseFloat(score);
@@ -69,7 +80,7 @@ export default function Jobs() {
   return (
     <div className="flex min-h-screen">
       <Sidebar />
-      
+
       <main className="flex-1 ml-64">
         {/* Header */}
         <header className="bg-white shadow-sm border-b border-gray-200">
@@ -85,10 +96,74 @@ export default function Jobs() {
                   className="pl-10 w-64"
                 />
               </div>
-              <Button variant="outline">
-                <Filter className="mr-2 h-4 w-4" />
-                Filters
-              </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="border-gray-300">
+                    <Filter className="mr-2 h-4 w-4" />
+                    Filters
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80" align="end">
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="font-medium mb-2">Sources</h4>
+                      {sources.map(source => (
+                        <div key={source} className="flex items-center space-x-2">
+                          <Checkbox 
+                            id={`source-${source}`}
+                            checked={selectedSources.includes(source)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedSources([...selectedSources, source]);
+                              } else {
+                                setSelectedSources(selectedSources.filter(s => s !== source));
+                              }
+                            }}
+                          />
+                          <Label htmlFor={`source-${source}`} className="text-sm">
+                            {source}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                    {departments.length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-2">Departments</h4>
+                        {departments.map(dept => (
+                          <div key={dept} className="flex items-center space-x-2">
+                            <Checkbox 
+                              id={`dept-${dept}`}
+                              checked={selectedDepartments.includes(dept)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedDepartments([...selectedDepartments, dept]);
+                                } else {
+                                  setSelectedDepartments(selectedDepartments.filter(d => d !== dept));
+                                }
+                              }}
+                            />
+                            <Label htmlFor={`dept-${dept}`} className="text-sm">
+                              {dept}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="pt-2 border-t">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setSelectedSources([]);
+                          setSelectedDepartments([]);
+                        }}
+                      >
+                        Clear All
+                      </Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </header>
@@ -122,7 +197,7 @@ export default function Jobs() {
           <div className="space-y-4">
             {filteredJobs?.map((job: JobPosting) => {
               const sourceBadge = getSourceBadge(job.source);
-              
+
               return (
                 <Card key={job.id} className="shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
                   <CardContent className="p-6">
@@ -152,7 +227,7 @@ export default function Jobs() {
                               )}
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center space-x-2">
                             <Badge className={getConfidenceColor(job.confidenceScore || "0")}>
                               {job.confidenceScore}% confidence
@@ -162,7 +237,7 @@ export default function Jobs() {
                             </Badge>
                           </div>
                         </div>
-                        
+
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-4 text-sm text-gray-500">
                             <div className="flex items-center">
@@ -180,7 +255,7 @@ export default function Jobs() {
                               }
                             </div>
                           </div>
-                          
+
                           {job.url && (
                             <Button variant="outline" size="sm" asChild>
                               <a href={job.url} target="_blank" rel="noopener noreferrer">
@@ -203,7 +278,7 @@ export default function Jobs() {
               <Search className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">No jobs found</h3>
               <p className="mt-1 text-sm text-gray-500">
-                {searchTerm || selectedCompany 
+                {searchTerm || selectedCompany || selectedSources.length > 0 || selectedDepartments.length > 0
                   ? "Try adjusting your search criteria." 
                   : "No job postings have been found yet."
                 }

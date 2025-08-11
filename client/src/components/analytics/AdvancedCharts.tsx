@@ -18,7 +18,10 @@ import {
   Area,
   AreaChart,
   RadialBarChart,
-  RadialBar
+  RadialBar,
+  ComposedChart,
+  ScatterChart,
+  Scatter
 } from "recharts";
 import { 
   TrendingUp, 

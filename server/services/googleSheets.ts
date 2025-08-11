@@ -148,23 +148,40 @@ export class GoogleSheetsService {
   }
 
   async getCompanies(): Promise<Company[]> {
-    if (!this.doc || !this.isInitialized) {
-      console.warn('⚠️ Google Sheets not initialized - returning empty companies list');
+    if (!this.doc) {
+      console.warn('⚠️ Google Sheets document not available - returning empty companies list');
       return [];
     }
 
     try {
+      // Force reload document info to ensure we have latest data
+      await this.doc.loadInfo();
+      
       const sheet = this.doc.sheetsByTitle['Company Data'];
       if (!sheet) {
-        console.warn('⚠️ Company Data sheet not found');
+        console.warn('⚠️ Company Data sheet not found. Available sheets:', Object.keys(this.doc.sheetsByTitle));
         return [];
       }
 
+      // Load header row first
+      await sheet.loadHeaderRow();
+      console.log('📋 Sheet headers:', sheet.headerValues);
+      
       const rows = await sheet.getRows();
+      console.log(`📊 Found ${rows.length} rows in Company Data sheet`);
+      
       const companies: Company[] = [];
 
       for (const row of rows) {
         try {
+          // Log raw row data for debugging
+          console.log('🔍 Processing row:', {
+            Name: row.get('Name'),
+            Website: row.get('Website'),
+            'LinkedIn URL': row.get('LinkedIn URL'),
+            'Is Active': row.get('Is Active')
+          });
+
           const company: Company = {
             id: randomUUID(),
             name: row.get('Name') || row.get('Company Name') || '',
@@ -179,15 +196,19 @@ export class GoogleSheetsService {
             updatedAt: new Date()
           };
 
-          if (company.name) {
+          if (company.name && company.name.trim()) {
             companies.push(company);
+            console.log(`✅ Added company: ${company.name}`);
+          } else {
+            console.log('⚠️ Skipping row with empty company name');
           }
         } catch (rowError) {
           console.warn('⚠️ Failed to parse company row:', rowError);
         }
       }
 
-      console.log(`✅ Loaded ${companies.length} companies from Google Sheets`);
+      console.log(`✅ Successfully loaded ${companies.length} companies from Google Sheets`);
+      this.isInitialized = true;
       return companies;
 
     } catch (error) {

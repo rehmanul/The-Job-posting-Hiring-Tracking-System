@@ -4,15 +4,24 @@ import { Bell, Pause, Play, RefreshCw } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 import StatsCards from "@/components/dashboard/statsCards";
 import JobsChart from "@/components/dashboard/jobsChart";
 import ActivityFeed from "@/components/dashboard/activityFeed";
 import JobsTable from "@/components/dashboard/jobsTable";
 import HiresTable from "@/components/dashboard/hiresTable";
+import LiveConsole from "@/components/dashboard/liveConsole";
 
 export default function Dashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const { data: notifications } = useQuery({
+    queryKey: ["/api/dashboard/activity"],
+    refetchInterval: 30000,
+  });
 
   const { data: stats } = useQuery({
     queryKey: ["/api/dashboard/stats"],
@@ -96,14 +105,42 @@ export default function Dashboard() {
             
             <div className="flex items-center space-x-4">
               {/* Notification Bell */}
-              <div className="relative">
-                <Button variant="ghost" size="sm" className="relative p-2">
-                  <Bell className="h-5 w-5 text-gray-600" />
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                    3
-                  </span>
-                </Button>
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="sm" className="relative p-2">
+                    <Bell className="h-5 w-5 text-gray-600" />
+                    {notifications && notifications.length > 0 && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                        {notifications.length}
+                      </span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80" align="end">
+                  <div className="space-y-2">
+                    <h4 className="font-medium">Recent Activities</h4>
+                    <ScrollArea className="h-64">
+                      {notifications && notifications.length > 0 ? (
+                        notifications.slice(0, 10).map((notification: any) => (
+                          <div key={notification.id} className="flex items-start space-x-2 p-2 border-b last:border-b-0">
+                            <Badge variant={notification.type === 'error' ? 'destructive' : 'default'} className="text-xs">
+                              {notification.type}
+                            </Badge>
+                            <div className="flex-1">
+                              <p className="text-sm">{notification.message}</p>
+                              <p className="text-xs text-gray-500">
+                                {new Date(notification.timestamp).toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-gray-500 p-2">No recent activities</p>
+                      )}
+                    </ScrollArea>
+                  </div>
+                </PopoverContent>
+              </Popover>
               
               {/* Control buttons */}
               <div className="flex items-center space-x-2">
@@ -142,9 +179,14 @@ export default function Dashboard() {
           </div>
 
           {/* Data Tables */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
             <JobsTable />
             <HiresTable />
+          </div>
+
+          {/* Live Console */}
+          <div className="mb-8">
+            <LiveConsole />
           </div>
         </div>
       </main>
