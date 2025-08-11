@@ -219,6 +219,7 @@ export default function Analytics() {
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(0, 0, 0, 0.05)" />
                       <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                       <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip />
                       <Legend />
                       <Line type="monotone" dataKey="jobs" stroke="hsl(213.8863 88.2845% 53.1373%)" strokeWidth={2} name="Jobs" />
                       <Line type="monotone" dataKey="hires" stroke="hsl(261.3 87.1% 52.35%)" strokeWidth={2} name="Hires" />
@@ -271,6 +272,7 @@ export default function Analytics() {
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(0, 0, 0, 0.05)" />
                     <XAxis dataKey="company" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip />
                     <Bar dataKey="jobs" fill="hsl(213.8863 88.2845% 53.1373%)" />
                   </BarChart>
                 </ResponsiveContainer>

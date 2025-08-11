@@ -184,7 +184,7 @@ export class GoogleSheetsService {
 
           const company: Company = {
             id: randomUUID(),
-            name: row.get('Name') || row.get('Company Name') || '',
+            name: row.get('Company Name') || row.get('Name') || '',
             website: row.get('Website') || '',
             careerPageUrl: row.get('Career Page URL') || row.get('Careers URL') || '',
             linkedinUrl: row.get('LinkedIn URL') || '',
