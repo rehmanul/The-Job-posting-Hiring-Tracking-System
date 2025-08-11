@@ -60,7 +60,7 @@ export function AdvancedCharts({ data }: AdvancedChartsProps) {
   const companyPerformance = companies?.map((company: any) => {
     const companyJobs = jobs?.filter(job => job.company === company.name) || [];
     const companyHires = hires?.filter(hire => hire.company === company.name) || [];
-    
+
     return {
       name: company.name,
       jobs: companyJobs.length,

@@ -38,19 +38,33 @@ export class GoogleSheetsService {
 
       // Clean up the private key format
       let privateKey = process.env.GOOGLE_PRIVATE_KEY;
+      console.log('🔍 Private key first 50 chars:', privateKey.substring(0, 50));
       
       // Handle different possible formats
       if (privateKey.includes('\\n')) {
         privateKey = privateKey.replace(/\\n/g, '\n');
+        console.log('🔧 Converted \\n to actual newlines');
+      }
+      
+      // Handle JSON escaped format
+      try {
+        if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+          privateKey = JSON.parse(privateKey);
+          console.log('🔧 Parsed JSON-escaped private key');
+        }
+      } catch (e) {
+        console.log('🔍 Private key is not JSON-escaped');
       }
       
       // Ensure proper PEM format
-      if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-        if (!privateKey.includes('-----BEGIN RSA PRIVATE KEY-----')) {
-          console.error('❌ Private key must be in PEM format starting with -----BEGIN PRIVATE KEY----- or -----BEGIN RSA PRIVATE KEY-----');
-          return;
-        }
+      if (!privateKey.includes('-----BEGIN PRIVATE KEY-----') && !privateKey.includes('-----BEGIN RSA PRIVATE KEY-----')) {
+        console.error('❌ Private key must be in PEM format starting with -----BEGIN PRIVATE KEY----- or -----BEGIN RSA PRIVATE KEY-----');
+        console.error('🔍 Current key starts with:', privateKey.substring(0, 100));
+        console.error('💡 Make sure to copy the entire private key including the BEGIN and END lines');
+        return;
       }
+      
+      console.log('✅ Private key format looks correct');
 
       try {
         this.serviceAccountAuth = new JWT({
