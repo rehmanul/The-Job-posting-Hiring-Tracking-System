@@ -2,14 +2,17 @@ import { storage } from '../storage';
 import { GoogleSheetsService } from './googleSheets';
 import { GoogleSheetsIntegrationService } from './googleSheetsIntegration';
 import { LinkedInScraper } from './linkedinScraper';
+import { WebsiteScraper } from './websiteScraper';
 import { SlackService } from './slackService';
 import { EmailService } from './emailService';
+import { initializeTargetCompanies } from '../config/targetCompanies';
 import type { Company, InsertJobPosting, InsertNewHire } from '@shared/schema';
 
 export class JobTrackerService {
   private googleSheets: GoogleSheetsService;
   private googleSheetsIntegration: GoogleSheetsIntegrationService;
   private linkedinScraper: LinkedInScraper;
+  private websiteScraper: WebsiteScraper;
   private slackService: SlackService;
   private emailService: EmailService;
   private isRunning = false;
@@ -18,6 +21,7 @@ export class JobTrackerService {
     this.googleSheets = new GoogleSheetsService();
     this.googleSheetsIntegration = new GoogleSheetsIntegrationService();
     this.linkedinScraper = new LinkedInScraper();
+    this.websiteScraper = new WebsiteScraper();
     this.slackService = new SlackService();
     this.emailService = new EmailService();
   }
@@ -36,8 +40,12 @@ export class JobTrackerService {
         // Continue without LinkedIn scraper - other features will still work
       }
       
-      // Clear any existing sample data and load real companies from Google Sheets
+      // Initialize website scraper
+      await this.websiteScraper.initialize();
+      
+      // Clear any existing sample data and initialize target companies
       await storage.clearSampleCompanies();
+      await initializeTargetCompanies();
       await this.loadCompaniesFromGoogleSheets();
       
       console.log('✅ Job Tracker Service initialized');
@@ -166,7 +174,7 @@ export class JobTrackerService {
         try {
           console.log(`🏢 Scanning hires for ${company.name}...`);
           
-          const hires = await this.linkedinScraper.scrapeNewHires(company.linkedinUrl!);
+          const hires = await this.linkedinScraper.scrapeCompanyHires(company.linkedinUrl!);
           totalHiresFound += hires.length;
           companiesScanned++;
           

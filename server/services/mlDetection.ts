@@ -218,6 +218,101 @@ Example: {"department": "Engineering", "seniority": "Senior", "skills": ["React"
     }
   }
 
+  async classifyHire(personName: string, position: string): Promise<{
+    position: string;
+    department: string;
+    seniority: string;
+    confidence: number;
+  }> {
+    if (!this.isEnabled || !this.openAIClient) {
+      return {
+        position,
+        department: this.classifyDepartmentFromTitle(position),
+        seniority: this.classifySeniorityFromTitle(position),
+        confidence: 0.6
+      };
+    }
+
+    try {
+      const prompt = `Analyze this new hire information and classify:
+
+Person: ${personName}
+Position: ${position}
+
+Return JSON with:
+- position: cleaned/standardized position title
+- department: (Engineering, Marketing, Sales, HR, Finance, Operations, Design, Data, Product, Customer Success, Legal, Executive, Other)
+- seniority: (Entry, Mid, Senior, Lead, Manager, Director, VP, Executive)
+- confidence: float 0-1 indicating classification confidence`;
+
+      const response = await this.openAIClient.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 150,
+        temperature: 0.1
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) throw new Error('No response content');
+
+      const classification = JSON.parse(content);
+
+      return {
+        position: classification.position || position,
+        department: classification.department || 'Other',
+        seniority: classification.seniority || 'Mid',
+        confidence: classification.confidence || 0.8
+      };
+
+    } catch (error) {
+      console.warn('⚠️ Hire classification failed, using fallback:', error);
+      return {
+        position,
+        department: this.classifyDepartmentFromTitle(position),
+        seniority: this.classifySeniorityFromTitle(position),
+        confidence: 0.6
+      };
+    }
+  }
+
+  private classifyDepartmentFromTitle(title: string): string {
+    const titleLower = title.toLowerCase();
+    
+    if (this.containsAny(titleLower, ['engineer', 'developer', 'software', 'full stack', 'backend', 'frontend', 'devops', 'sre', 'architect'])) {
+      return 'Engineering';
+    } else if (this.containsAny(titleLower, ['marketing', 'content', 'seo', 'campaign', 'brand', 'growth'])) {
+      return 'Marketing';
+    } else if (this.containsAny(titleLower, ['sales', 'account', 'business development', 'revenue'])) {
+      return 'Sales';
+    } else if (this.containsAny(titleLower, ['data', 'analytics', 'scientist', 'analyst', 'bi', 'ml', 'ai'])) {
+      return 'Data';
+    } else if (this.containsAny(titleLower, ['product', 'pm', 'product manager'])) {
+      return 'Product';
+    } else if (this.containsAny(titleLower, ['design', 'ui', 'ux', 'visual', 'creative'])) {
+      return 'Design';
+    } else if (this.containsAny(titleLower, ['hr', 'human resources', 'people', 'talent', 'recruiter'])) {
+      return 'HR';
+    }
+    
+    return 'Other';
+  }
+
+  private classifySeniorityFromTitle(title: string): string {
+    const titleLower = title.toLowerCase();
+    
+    if (this.containsAny(titleLower, ['intern', 'junior', 'entry', 'graduate', 'associate'])) {
+      return 'Entry';
+    } else if (this.containsAny(titleLower, ['senior', 'sr.', 'lead', 'principal', 'staff'])) {
+      return 'Senior';
+    } else if (this.containsAny(titleLower, ['manager', 'head of', 'team lead'])) {
+      return 'Manager';
+    } else if (this.containsAny(titleLower, ['director', 'vp', 'vice president', 'chief'])) {
+      return 'Director';
+    }
+    
+    return 'Mid';
+  }
+
   private async calculateSimilarity(job1: any, job2: any): Promise<number> {
     if (!this.openAIClient) return 0;
 
