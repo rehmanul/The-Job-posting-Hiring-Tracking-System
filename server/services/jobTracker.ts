@@ -1,5 +1,6 @@
 import { storage } from '../storage';
 import { GoogleSheetsService } from './googleSheets';
+import { GoogleSheetsIntegrationService } from './googleSheetsIntegration';
 import { LinkedInScraper } from './linkedinScraper';
 import { SlackService } from './slackService';
 import { EmailService } from './emailService';
@@ -7,6 +8,7 @@ import type { Company, InsertJobPosting, InsertNewHire } from '@shared/schema';
 
 export class JobTrackerService {
   private googleSheets: GoogleSheetsService;
+  private googleSheetsIntegration: GoogleSheetsIntegrationService;
   private linkedinScraper: LinkedInScraper;
   private slackService: SlackService;
   private emailService: EmailService;
@@ -14,6 +16,7 @@ export class JobTrackerService {
 
   constructor() {
     this.googleSheets = new GoogleSheetsService();
+    this.googleSheetsIntegration = new GoogleSheetsIntegrationService();
     this.linkedinScraper = new LinkedInScraper();
     this.slackService = new SlackService();
     this.emailService = new EmailService();

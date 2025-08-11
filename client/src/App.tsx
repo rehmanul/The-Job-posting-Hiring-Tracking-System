@@ -10,12 +10,14 @@ import Hires from "@/pages/hires";
 import Analytics from "@/pages/analytics";
 import Health from "@/pages/health";
 import Settings from "@/pages/settings";
+import MobileDashboard from "@/pages/mobile";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/mobile" component={MobileDashboard} />
       <Route path="/companies" component={Companies} />
       <Route path="/jobs" component={Jobs} />
       <Route path="/hires" component={Hires} />

@@ -13,8 +13,10 @@ export interface IStorage {
   getCompanies(): Promise<Company[]>;
   getCompany(id: string): Promise<Company | undefined>;
   createCompany(company: InsertCompany): Promise<Company>;
+  addCompany(company: InsertCompany): Promise<Company>;
   updateCompany(id: string, updates: Partial<InsertCompany>): Promise<Company | undefined>;
   deleteCompany(id: string): Promise<boolean>;
+  clearSampleCompanies(): Promise<void>;
 
   // Job Postings
   getJobPostings(limit?: number): Promise<JobPosting[]>;
@@ -108,6 +110,15 @@ export class MemStorage implements IStorage {
     };
     this.companies.set(id, company);
     return company;
+  }
+
+  async addCompany(insertCompany: InsertCompany): Promise<Company> {
+    return this.createCompany(insertCompany);
+  }
+
+  async clearSampleCompanies(): Promise<void> {
+    // Clear existing companies to load fresh from Google Sheets
+    this.companies.clear();
   }
 
   async updateCompany(id: string, updates: Partial<InsertCompany>): Promise<Company | undefined> {

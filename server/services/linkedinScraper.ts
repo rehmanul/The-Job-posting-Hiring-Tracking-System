@@ -1,5 +1,7 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
 import type { JobPosting, NewHire, InsertJobPosting, InsertNewHire } from '@shared/schema';
+import { MLDetectionService } from './mlDetection';
+import { ProxyRotationService } from './proxyRotation';
 
 export class LinkedInScraper {
   private browser: Browser | null = null;
@@ -7,6 +9,8 @@ export class LinkedInScraper {
   private isLoggedIn = false;
   private isInitialized = false;
   private isEnabled = false;
+  private mlService: MLDetectionService;
+  private proxyService: ProxyRotationService;
 
   private readonly browserConfig = {
     headless: process.env.NODE_ENV === 'production',
@@ -20,9 +24,16 @@ export class LinkedInScraper {
       '--no-zygote',
       '--single-process',
       '--disable-gpu',
+      '--disable-web-security',
+      '--disable-features=VizDisplayCompositor',
       '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     ]
   };
+
+  constructor() {
+    this.mlService = new MLDetectionService();
+    this.proxyService = new ProxyRotationService();
+  }
 
   async initialize(): Promise<void> {
     try {
@@ -153,10 +164,16 @@ export class LinkedInScraper {
 
       for (const card of jobCards.slice(0, 20)) { // Limit to first 20 jobs
         try {
-          const jobData = await this.extractJobData(card);
-          if (jobData && jobData.jobTitle) {
+          const rawJobData = await this.extractJobData(card);
+          if (rawJobData && rawJobData.jobTitle) {
+            // Enhance with ML detection
+            const enhancedJob = await this.mlService.enhanceJobDetection(
+              rawJobData, 
+              `LinkedIn job scraping for company: ${companyLinkedInUrl}`
+            );
+            
             jobs.push({
-              ...jobData,
+              ...enhancedJob,
               source: 'linkedin',
             });
           }
@@ -244,13 +261,18 @@ export class LinkedInScraper {
 
       for (const card of profileCards.slice(0, 50)) { // Limit to first 50 profiles
         try {
-          const hireData = await this.extractNewHireData(card);
-          if (hireData && this.isRecentHire(hireData.startDate)) {
+          const rawHireData = await this.extractNewHireData(card);
+          if (rawHireData && this.isRecentHire(rawHireData.startDate)) {
+            // Enhance with ML detection
+            const enhancedHire = await this.mlService.enhanceHireDetection(
+              rawHireData,
+              `LinkedIn hire detection for company: ${companyLinkedInUrl}`
+            );
+            
             newHires.push({
-              ...hireData,
+              ...enhancedHire,
               company: companyLinkedInUrl,
               source: 'linkedin',
-              confidenceScore: '85', // Base confidence for LinkedIn hire detection
             });
           }
         } catch (error) {
