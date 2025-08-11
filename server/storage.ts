@@ -17,6 +17,7 @@ export interface IStorage {
   updateCompany(id: string, updates: Partial<InsertCompany>): Promise<Company | undefined>;
   deleteCompany(id: string): Promise<boolean>;
   clearSampleCompanies(): Promise<void>;
+  syncCompaniesFromGoogleSheets(companiesData: any[]): Promise<void>;
 
   // Job Postings
   getJobPostings(limit?: number): Promise<JobPosting[]>;
