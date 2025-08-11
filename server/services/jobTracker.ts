@@ -29,8 +29,9 @@ export class JobTrackerService {
       await this.googleSheets.initialize();
       await this.linkedinScraper.initialize();
       
-      // Load companies from Google Sheets if available
-      await this.syncCompaniesFromSheets();
+      // Clear any existing sample data and load real companies from Google Sheets
+      await storage.clearSampleCompanies();
+      await this.loadCompaniesFromGoogleSheets();
       
       console.log('✅ Job Tracker Service initialized');
     } catch (error) {
@@ -209,29 +210,19 @@ export class JobTrackerService {
     return jobs;
   }
 
-  private async syncCompaniesFromSheets(): Promise<void> {
+  private async loadCompaniesFromGoogleSheets(): Promise<void> {
     try {
-      const sheetCompanies = await this.googleSheets.getCompanies();
+      // Use the storage method to sync companies from Google Sheets
+      await storage.syncCompaniesFromGoogleSheets(this.googleSheets);
       
-      for (const sheetCompany of sheetCompanies) {
-        // Check if company already exists
-        const existingCompanies = await storage.getCompanies();
-        const exists = existingCompanies.find(c => c.name.toLowerCase() === sheetCompany.name.toLowerCase());
-        
-        if (!exists) {
-          await storage.createCompany({
-            name: sheetCompany.name,
-            website: sheetCompany.website,
-            linkedinUrl: sheetCompany.linkedinUrl,
-            careerPageUrl: sheetCompany.careerPageUrl,
-            isActive: sheetCompany.isActive ?? true,
-          });
-          
-          console.log(`✅ Added company from sheets: ${sheetCompany.name}`);
-        }
+      const companies = await storage.getCompanies();
+      if (companies.length === 0) {
+        console.warn('⚠️ No companies loaded from Google Sheets. Please check your sheet configuration.');
+        console.warn('📋 Expected sheet format: "Company Data" with columns: Company Name, Website, LinkedIn URL, LinkedIn Career Page URL, Is Active, Last Scanned');
       }
     } catch (error) {
-      console.warn('⚠️ Failed to sync companies from Google Sheets:', error);
+      console.error('❌ Failed to load companies from Google Sheets:', error);
+      throw error;
     }
   }
 

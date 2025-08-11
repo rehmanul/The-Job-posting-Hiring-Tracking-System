@@ -92,11 +92,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const updates = req.body;
       const company = await storage.updateCompany(id, updates);
-      
+
       if (!company) {
         return res.status(404).json({ error: "Company not found" });
       }
-      
+
       res.json(company);
     } catch (error) {
       console.error("Error updating company:", error);
@@ -108,11 +108,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const deleted = await storage.deleteCompany(id);
-      
+
       if (!deleted) {
         return res.status(404).json({ error: "Company not found" });
       }
-      
+
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting company:", error);
@@ -204,9 +204,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Refresh companies from Google Sheets
+  app.post('/api/companies/refresh', async (req, res) => {
+    try {
+      console.log('🔄 Manual refresh of companies from Google Sheets requested...');
+
+      // Clear existing companies and reload from Google Sheets
+      await storage.clearSampleCompanies();
+
+      // Get the Google Sheets service from job tracker
+      const googleSheetsService = (schedulerService as any).googleSheets; // Assuming googleSheets is a property of SchedulerService
+      await storage.syncCompaniesFromGoogleSheets(googleSheetsService);
+
+      const companies = await storage.getCompanies();
+
+      res.json({
+        success: true,
+        message: `Successfully refreshed ${companies.length} companies from Google Sheets`,
+        companiesCount: companies.length,
+        companies: companies.map(c => ({ 
+          name: c.name, 
+          website: c.website, 
+          isActive: c.isActive 
+        }))
+      });
+
+    } catch (error) {
+      console.error('❌ Failed to refresh companies:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to refresh companies from Google Sheets',
+        details: (error as Error).message
+      });
+    }
+  });
+
   // Graceful shutdown handler
   const httpServer = createServer(app);
-  
+
   process.on('SIGTERM', async () => {
     console.log('SIGTERM received, shutting down gracefully...');
     if (schedulerService) {

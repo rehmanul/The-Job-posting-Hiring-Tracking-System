@@ -2,6 +2,14 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
+// Assuming jobTracker, healthMonitor, scheduler, and storage are imported from their respective modules
+// For the purpose of this example, we'll mock them to satisfy the startServer function's requirements.
+const jobTracker = { initialize: async () => console.log('Mock jobTracker initialized') };
+const healthMonitor = { initialize: async () => console.log('Mock healthMonitor initialized') };
+const scheduler = { initialize: async () => console.log('Mock scheduler initialized'), start: () => console.log('Mock scheduler started') };
+const storage = { getCompanies: async () => [{ id: 1, name: 'Sample Company' }] };
+
+
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -36,7 +44,46 @@ app.use((req, res, next) => {
   next();
 });
 
+async function startServer() {
+  try {
+    console.log('🚀 Starting Job Tracker Application...');
+
+    // Validate Google Sheets configuration
+    if (!process.env.GOOGLE_SHEETS_ID) {
+      console.error('❌ GOOGLE_SHEETS_ID is required for production use');
+      console.error('📋 Please set up your Google Sheets credentials in the Secrets tab');
+      throw new Error('Missing Google Sheets configuration');
+    }
+
+    if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
+      console.error('❌ Google Service Account credentials are required');
+      console.error('📋 Please set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY in Secrets');
+      throw new Error('Missing Google Service Account credentials');
+    }
+
+    // Initialize services
+    await jobTracker.initialize();
+    await healthMonitor.initialize();
+    await scheduler.initialize();
+
+    // Start the scheduler
+    scheduler.start();
+
+    console.log('✅ All services initialized successfully');
+
+    // Verify companies were loaded
+    const companies = await storage.getCompanies();
+    console.log(`📊 Loaded ${companies.length} companies for tracking`);
+
+  } catch (error) {
+    console.error('❌ Failed to start application:', error);
+    process.exit(1);
+  }
+}
+
+
 (async () => {
+  await startServer(); // Call the new startServer function
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

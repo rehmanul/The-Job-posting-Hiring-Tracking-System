@@ -1,5 +1,6 @@
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
+import { randomUUID } from 'crypto';
 import type { Company, JobPosting, NewHire, Analytics, HealthMetric } from '@shared/schema';
 
 export class GoogleSheetsService {
@@ -94,20 +95,32 @@ export class GoogleSheetsService {
     
     try {
       const sheet = this.doc.sheetsByTitle['Company Data'];
+      if (!sheet) {
+        console.error('❌ "Company Data" sheet not found. Please ensure the sheet exists with the correct name.');
+        return [];
+      }
+      
       const rows = await sheet.getRows();
       
-      return rows.map(row => ({
-        id: row.get('ID') || '',
-        name: row.get('Company Name') || '',
-        website: row.get('Website') || '',
-        linkedinUrl: row.get('LinkedIn URL') || '',
-        careerPageUrl: row.get('LinkedIn Career Page URL') || '',
-        isActive: row.get('Is Active') === 'TRUE',
-        lastScanned: row.get('Last Scanned') ? new Date(row.get('Last Scanned')) : null,
-        createdAt: new Date(),
-      }));
+      const companies = rows
+        .filter(row => row.get('Company Name') && row.get('Website')) // Only include rows with required fields
+        .map(row => ({
+          id: row.get('ID') || randomUUID(),
+          name: row.get('Company Name').trim(),
+          website: row.get('Website').trim(),
+          linkedinUrl: row.get('LinkedIn URL') ? row.get('LinkedIn URL').trim() : '',
+          careerPageUrl: row.get('LinkedIn Career Page URL') ? row.get('LinkedIn Career Page URL').trim() : row.get('Website').trim(),
+          isActive: row.get('Is Active') !== 'FALSE' && row.get('Is Active') !== 'false' && row.get('Is Active') !== '0',
+          lastScanned: row.get('Last Scanned') ? new Date(row.get('Last Scanned')) : null,
+          createdAt: new Date(),
+        }));
+      
+      console.log(`📊 Retrieved ${companies.length} companies from Google Sheets`);
+      return companies;
+      
     } catch (error) {
       console.error('❌ Failed to get companies from Google Sheets:', error);
+      console.error('📋 Make sure your sheet has columns: Company Name, Website, LinkedIn URL, LinkedIn Career Page URL, Is Active, Last Scanned');
       return [];
     }
   }

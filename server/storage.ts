@@ -57,38 +57,7 @@ export class MemStorage implements IStorage {
   private systemLogs: Map<string, SystemLog> = new Map();
 
   constructor() {
-    // Initialize with sample companies
-    this.initializeSampleData();
-  }
-
-  private initializeSampleData() {
-    const sampleCompanies: InsertCompany[] = [
-      {
-        name: "Stripe",
-        website: "https://stripe.com",
-        linkedinUrl: "https://linkedin.com/company/stripe",
-        careerPageUrl: "https://stripe.com/jobs",
-        isActive: true,
-      },
-      {
-        name: "OpenAI",
-        website: "https://openai.com",
-        linkedinUrl: "https://linkedin.com/company/openai",
-        careerPageUrl: "https://openai.com/careers",
-        isActive: true,
-      },
-      {
-        name: "Figma",
-        website: "https://figma.com",
-        linkedinUrl: "https://linkedin.com/company/figma",
-        careerPageUrl: "https://figma.com/careers",
-        isActive: true,
-      },
-    ];
-
-    sampleCompanies.forEach(company => {
-      this.createCompany(company);
-    });
+    // Production storage - no sample data
   }
 
   // Companies
@@ -213,7 +182,7 @@ export class MemStorage implements IStorage {
     return updatedHire;
   }
 
-  async getNewNewHires(): Promise<NewHire[]> {
+  async getNewNewHires(): Promise<NewHire[]>{
     return Array.from(this.newHires.values()).filter(hire => hire.isNew && !hire.notificationSent);
   }
 
@@ -230,12 +199,12 @@ export class MemStorage implements IStorage {
   async getAnalytics(days?: number): Promise<Analytics[]> {
     let analytics = Array.from(this.analytics.values())
       .sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
-    
+
     if (days) {
       const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
       analytics = analytics.filter(a => (a.date?.getTime() || 0) >= cutoffDate.getTime());
     }
-    
+
     return analytics;
   }
 
@@ -259,16 +228,16 @@ export class MemStorage implements IStorage {
   // Health Metrics
   async getHealthMetrics(service?: string, hours?: number): Promise<HealthMetric[]> {
     let metrics = Array.from(this.healthMetrics.values());
-    
+
     if (service) {
       metrics = metrics.filter(m => m.service === service);
     }
-    
+
     if (hours) {
       const cutoffDate = new Date(Date.now() - hours * 60 * 60 * 1000);
       metrics = metrics.filter(m => (m.timestamp?.getTime() || 0) >= cutoffDate.getTime());
     }
-    
+
     return metrics.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
   }
 
@@ -286,17 +255,17 @@ export class MemStorage implements IStorage {
   // System Logs
   async getSystemLogs(service?: string, level?: string, limit?: number): Promise<SystemLog[]> {
     let logs = Array.from(this.systemLogs.values());
-    
+
     if (service) {
       logs = logs.filter(l => l.service === service);
     }
-    
+
     if (level) {
       logs = logs.filter(l => l.level === level);
     }
-    
+
     logs = logs.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
-    
+
     return limit ? logs.slice(0, limit) : logs;
   }
 
