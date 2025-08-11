@@ -50,15 +50,12 @@ async function startServer() {
 
     // Validate Google Sheets configuration
     if (!process.env.GOOGLE_SHEETS_ID) {
-      console.error('❌ GOOGLE_SHEETS_ID is required for production use');
-      console.error('📋 Please set up your Google Sheets credentials in the Secrets tab');
-      throw new Error('Missing Google Sheets configuration');
-    }
-
-    if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
-      console.error('❌ Google Service Account credentials are required');
-      console.error('📋 Please set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY in Secrets');
-      throw new Error('Missing Google Service Account credentials');
+      console.warn('⚠️ GOOGLE_SHEETS_ID not found - Google Sheets integration will be disabled');
+    } else if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
+      console.warn('⚠️ Google Service Account credentials missing - Google Sheets integration will be disabled');
+      console.log('📋 To enable Google Sheets: set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY in Secrets');
+    } else {
+      console.log('✅ Google Sheets credentials found');
     }
 
     // Initialize services
