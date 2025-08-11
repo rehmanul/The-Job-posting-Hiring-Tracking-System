@@ -2,26 +2,36 @@ import { WebClient, type ChatPostMessageArguments } from '@slack/web-api';
 import type { JobPosting, NewHire } from '@shared/schema';
 
 export class SlackService {
-  private client: WebClient;
-  private channelId: string;
+  private client: WebClient | null = null;
+  private channelId: string | null = null;
+  private isConfigured = false;
 
   constructor() {
     const token = process.env.SLACK_BOT_TOKEN;
     const channelId = process.env.SLACK_CHANNEL_ID;
 
     if (!token) {
-      throw new Error('SLACK_BOT_TOKEN environment variable must be set');
+      console.warn('⚠️ SLACK_BOT_TOKEN not provided - Slack integration disabled');
+      return;
     }
 
     if (!channelId) {
-      throw new Error('SLACK_CHANNEL_ID environment variable must be set');
+      console.warn('⚠️ SLACK_CHANNEL_ID not provided - Slack integration disabled');
+      return;
     }
 
     this.client = new WebClient(token);
     this.channelId = channelId;
+    this.isConfigured = true;
+    console.log('✅ Slack integration configured');
   }
 
   async sendJobAlert(job: JobPosting): Promise<void> {
+    if (!this.isConfigured || !this.client || !this.channelId) {
+      console.log('⚠️ Slack not configured - skipping job alert');
+      return;
+    }
+
     try {
       const message: ChatPostMessageArguments = {
         channel: this.channelId,
@@ -102,6 +112,11 @@ export class SlackService {
   }
 
   async sendHireAlert(hire: NewHire): Promise<void> {
+    if (!this.isConfigured || !this.client || !this.channelId) {
+      console.log('⚠️ Slack not configured - skipping hire alert');
+      return;
+    }
+
     try {
       const message: ChatPostMessageArguments = {
         channel: this.channelId,
@@ -178,6 +193,11 @@ export class SlackService {
   }
 
   async sendSystemMessage(message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info'): Promise<void> {
+    if (!this.isConfigured || !this.client || !this.channelId) {
+      console.log('⚠️ Slack not configured - skipping system message');
+      return;
+    }
+
     try {
       const iconMap = {
         info: '🔵',
@@ -213,6 +233,11 @@ export class SlackService {
     companiesScanned: number, 
     successRate: number
   ): Promise<void> {
+    if (!this.isConfigured || !this.client || !this.channelId) {
+      console.log('⚠️ Slack not configured - skipping daily summary');
+      return;
+    }
+
     try {
       await this.client.chat.postMessage({
         channel: this.channelId,

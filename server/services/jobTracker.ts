@@ -109,7 +109,10 @@ export class JobTrackerService {
           
           // Update company scan timestamp
           await storage.updateCompany(company.id, { 
-            lastScanned: new Date() 
+            isActive: company.isActive, 
+            website: company.website,
+            linkedinUrl: company.linkedinUrl,
+            careerPageUrl: company.careerPageUrl
           });
           
           // Add delay between companies to avoid rate limiting
@@ -322,7 +325,12 @@ export class JobTrackerService {
       const analytics = await storage.getAnalytics();
       const recentAnalytics = analytics.slice(-7); // Last 7 entries
       const successRate = recentAnalytics.length > 0 
-        ? recentAnalytics.reduce((sum, a) => sum + (a.successfulScans / (a.successfulScans + a.failedScans) * 100), 0) / recentAnalytics.length
+        ? recentAnalytics.reduce((sum, a) => {
+            const successful = a.successfulScans || 0;
+            const failed = a.failedScans || 0;
+            const total = successful + failed;
+            return sum + (total > 0 ? (successful / total * 100) : 0);
+          }, 0) / recentAnalytics.length
         : 0;
       
       // Send summary notifications

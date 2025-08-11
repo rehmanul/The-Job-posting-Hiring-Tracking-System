@@ -16,6 +16,7 @@ export interface IStorage {
   addCompany(company: InsertCompany): Promise<Company>;
   updateCompany(id: string, updates: Partial<InsertCompany>): Promise<Company | undefined>;
   deleteCompany(id: string): Promise<boolean>;
+  clearSampleCompanies(): Promise<void>;
   syncCompaniesFromGoogleSheets(companiesData: any[]): Promise<void>;
 
   // Job Postings
@@ -72,8 +73,12 @@ export class MemStorage implements IStorage {
   async createCompany(insertCompany: InsertCompany): Promise<Company> {
     const id = randomUUID();
     const company: Company = { 
-      ...insertCompany, 
       id,
+      name: insertCompany.name,
+      website: insertCompany.website ?? null,
+      linkedinUrl: insertCompany.linkedinUrl ?? null,
+      careerPageUrl: insertCompany.careerPageUrl ?? null,
+      isActive: insertCompany.isActive ?? true,
       createdAt: new Date(),
       lastScanned: null,
     };
@@ -96,6 +101,11 @@ export class MemStorage implements IStorage {
 
   async deleteCompany(id: string): Promise<boolean> {
     return this.companies.delete(id);
+  }
+
+  async clearSampleCompanies(): Promise<void> {
+    this.companies.clear();
+    console.log('✅ Cleared all sample companies');
   }
 
   async syncCompaniesFromGoogleSheets(googleSheetsService: any): Promise<void> {
@@ -136,8 +146,15 @@ export class MemStorage implements IStorage {
   async createJobPosting(insertJob: InsertJobPosting): Promise<JobPosting> {
     const id = randomUUID();
     const job: JobPosting = { 
-      ...insertJob, 
       id,
+      company: insertJob.company,
+      jobTitle: insertJob.jobTitle,
+      location: insertJob.location ?? null,
+      department: insertJob.department ?? null,
+      postedDate: insertJob.postedDate ?? null,
+      url: insertJob.url ?? null,
+      confidenceScore: insertJob.confidenceScore ?? null,
+      source: insertJob.source,
       foundDate: new Date(),
       isNew: true,
       notificationSent: false,
@@ -182,8 +199,14 @@ export class MemStorage implements IStorage {
   async createNewHire(insertHire: InsertNewHire): Promise<NewHire> {
     const id = randomUUID();
     const hire: NewHire = { 
-      ...insertHire, 
       id,
+      personName: insertHire.personName,
+      company: insertHire.company,
+      position: insertHire.position,
+      startDate: insertHire.startDate ?? null,
+      linkedinProfile: insertHire.linkedinProfile ?? null,
+      source: insertHire.source,
+      confidenceScore: insertHire.confidenceScore ?? null,
       foundDate: new Date(),
       isNew: true,
       notificationSent: false,
@@ -230,9 +253,16 @@ export class MemStorage implements IStorage {
   async createAnalytics(insertAnalytics: InsertAnalytics): Promise<Analytics> {
     const id = randomUUID();
     const analytics: Analytics = { 
-      ...insertAnalytics, 
       id,
       date: new Date(),
+      totalCompanies: insertAnalytics.totalCompanies ?? null,
+      activeCompanies: insertAnalytics.activeCompanies ?? null,
+      jobsFound: insertAnalytics.jobsFound ?? null,
+      hiresFound: insertAnalytics.hiresFound ?? null,
+      successfulScans: insertAnalytics.successfulScans ?? null,
+      failedScans: insertAnalytics.failedScans ?? null,
+      avgResponseTime: insertAnalytics.avgResponseTime ?? null,
+      metadata: insertAnalytics.metadata ?? null,
     };
     this.analytics.set(id, analytics);
     return analytics;
@@ -263,9 +293,13 @@ export class MemStorage implements IStorage {
   async createHealthMetric(insertMetric: InsertHealthMetric): Promise<HealthMetric> {
     const id = randomUUID();
     const metric: HealthMetric = { 
-      ...insertMetric, 
       id,
       timestamp: new Date(),
+      service: insertMetric.service,
+      status: insertMetric.status,
+      responseTime: insertMetric.responseTime ?? null,
+      errorMessage: insertMetric.errorMessage ?? null,
+      metadata: insertMetric.metadata ?? null,
     };
     this.healthMetrics.set(id, metric);
     return metric;
@@ -291,9 +325,12 @@ export class MemStorage implements IStorage {
   async createSystemLog(insertLog: InsertSystemLog): Promise<SystemLog> {
     const id = randomUUID();
     const log: SystemLog = { 
-      ...insertLog, 
       id,
       timestamp: new Date(),
+      level: insertLog.level,
+      service: insertLog.service,
+      message: insertLog.message,
+      metadata: insertLog.metadata ?? null,
     };
     this.systemLogs.set(id, log);
     return log;
