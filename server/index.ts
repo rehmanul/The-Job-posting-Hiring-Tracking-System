@@ -67,7 +67,8 @@ async function startServer() {
       await jobTracker.initialize();
       console.log('✅ Job Tracker Service initialized');
     } catch (error) {
-      console.error('⚠️ Job Tracker Service failed to initialize:', error);
+      console.error('⚠️ Job Tracker Service failed to initialize:', error.message);
+      console.log('💡 This is likely due to Google Sheets credentials. The app will continue without Google Sheets integration.');
       serviceErrors.push('JobTracker');
     }
 
@@ -84,7 +85,8 @@ async function startServer() {
       scheduler.start();
       console.log('✅ Scheduler Service initialized and started');
     } catch (error) {
-      console.error('⚠️ Scheduler Service failed to initialize:', error);
+      console.error('⚠️ Scheduler Service failed to initialize:', error.message);
+      console.log('💡 This is likely due to Google Sheets credentials. The app will continue without scheduled tasks.');
       serviceErrors.push('Scheduler');
     }
 

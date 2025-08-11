@@ -32,18 +32,40 @@ export class GoogleSheetsService {
       
       // Set up service account authentication
       if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
-        throw new Error('Missing Google Service Account credentials');
+        console.warn('⚠️ Missing Google Service Account credentials - Google Sheets will be disabled');
+        return; // Don't throw error, just disable Google Sheets
       }
 
-      const privateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
-      this.serviceAccountAuth = new JWT({
-        email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-        key: privateKey,
-        scopes: [
-          'https://www.googleapis.com/auth/spreadsheets',
-          'https://www.googleapis.com/auth/drive.file',
-        ],
-      });
+      // Clean up the private key format
+      let privateKey = process.env.GOOGLE_PRIVATE_KEY;
+      
+      // Handle different possible formats
+      if (privateKey.includes('\\n')) {
+        privateKey = privateKey.replace(/\\n/g, '\n');
+      }
+      
+      // Ensure proper PEM format
+      if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+        if (!privateKey.includes('-----BEGIN RSA PRIVATE KEY-----')) {
+          console.error('❌ Private key must be in PEM format starting with -----BEGIN PRIVATE KEY----- or -----BEGIN RSA PRIVATE KEY-----');
+          return;
+        }
+      }
+
+      try {
+        this.serviceAccountAuth = new JWT({
+          email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+          key: privateKey,
+          scopes: [
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/drive.file',
+          ],
+        });
+      } catch (keyError) {
+        console.error('❌ Failed to create JWT with private key:', keyError.message);
+        console.error('💡 Make sure your GOOGLE_PRIVATE_KEY is in proper PEM format');
+        return;
+      }
 
       // Initialize the document
       this.doc = new GoogleSpreadsheet(sheetsId, this.serviceAccountAuth);
