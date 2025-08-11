@@ -2,23 +2,23 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
-  LineChart, 
-  Line, 
-  AreaChart,
-  Area,
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
   ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
   BarChart,
   Bar,
   PieChart,
+  Pie,
   Cell,
-  ComposedChart,
-  Legend,
-  ScatterChart,
-  Scatter
+  Area,
+  AreaChart,
+  RadialBarChart,
+  RadialBar
 } from "recharts";
 import { 
   TrendingUp, 
