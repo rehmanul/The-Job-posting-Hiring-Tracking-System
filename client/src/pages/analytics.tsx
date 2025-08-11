@@ -94,11 +94,11 @@ export default function Analytics() {
   // Calculate trends
   const latestAnalytics = analytics?.[analytics.length - 1];
   const previousAnalytics = analytics?.[analytics.length - 2];
-  
+
   const jobsTrend = latestAnalytics && previousAnalytics 
     ? ((latestAnalytics.jobsFound - previousAnalytics.jobsFound) / previousAnalytics.jobsFound * 100).toFixed(1)
     : 0;
-  
+
   const hiresTrend = latestAnalytics && previousAnalytics 
     ? ((latestAnalytics.hiresFound - previousAnalytics.hiresFound) / previousAnalytics.hiresFound * 100).toFixed(1)
     : 0;
@@ -106,7 +106,7 @@ export default function Analytics() {
   return (
     <div className="flex min-h-screen">
       <Sidebar />
-      
+
       <main className="flex-1 ml-64">
         {/* Header */}
         <header className="bg-white shadow-sm border-b border-gray-200">

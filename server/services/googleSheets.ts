@@ -1,10 +1,12 @@
 import { GoogleSpreadsheet } from 'google-spreadsheet';
+import { JWT } from 'google-auth-library';
 import { randomUUID } from 'crypto';
 import type { Company, JobPosting, NewHire, Analytics, HealthMetric } from '@shared/schema';
 
 export class GoogleSheetsService {
   private doc: GoogleSpreadsheet | null = null;
   private isInitialized = false;
+  private serviceAccountAuth: JWT | null = null;
 
   constructor() {
     const sheetsId = process.env.GOOGLE_SHEETS_ID;
@@ -12,31 +14,46 @@ export class GoogleSheetsService {
       console.warn('⚠️ GOOGLE_SHEETS_ID not provided - Google Sheets integration disabled');
       return;
     }
-    this.doc = new GoogleSpreadsheet(sheetsId);
+    // Don't initialize doc here, do it in initialize() method
   }
 
   async initialize(): Promise<void> {
     try {
       console.log('🔧 Initializing Google Sheets service...');
 
-      if (!this.spreadsheetId) {
+      const sheetsId = process.env.GOOGLE_SHEETS_ID;
+      if (!sheetsId) {
         console.error('❌ GOOGLE_SHEETS_ID environment variable not set');
         console.log('📝 Available environment variables:', Object.keys(process.env).filter(key => key.includes('GOOGLE')));
         throw new Error('Google Sheets ID not configured');
       }
 
-      console.log('🔑 Attempting to authorize Google Sheets access...');
-      await this.auth.authorize();
-      this.sheets = google.sheets({ version: 'v4', auth: this.auth });
+      console.log('🔑 Setting up Google Sheets authentication...');
+      
+      // Set up service account authentication
+      if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
+        throw new Error('Missing Google Service Account credentials');
+      }
 
-      console.log('🔍 Testing Google Sheets connection...');
-      // Test the connection
-      const response = await this.sheets.spreadsheets.get({
-        spreadsheetId: this.spreadsheetId,
+      const privateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
+      this.serviceAccountAuth = new JWT({
+        email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        key: privateKey,
+        scopes: [
+          'https://www.googleapis.com/auth/spreadsheets',
+          'https://www.googleapis.com/auth/drive.file',
+        ],
       });
 
-      console.log(`✅ Connected to Google Sheet: ${response.data.properties?.title}`);
-
+      // Initialize the document
+      this.doc = new GoogleSpreadsheet(sheetsId, this.serviceAccountAuth);
+      await this.doc.loadInfo();
+      
+      console.log(`✅ Connected to Google Sheet: "${this.doc.title}"`);
+      
+      // Ensure required sheets exist
+      await this.ensureSheets();
+      
       // Test reading companies
       console.log('📋 Testing companies data retrieval...');
       const companies = await this.getCompanies();
