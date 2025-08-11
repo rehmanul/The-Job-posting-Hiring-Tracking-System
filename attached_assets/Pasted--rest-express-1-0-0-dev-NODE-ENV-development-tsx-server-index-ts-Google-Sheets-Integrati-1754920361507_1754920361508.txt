@@ -1,0 +1,170 @@
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+📊 Google Sheets Integration initialized
+⚠️ SLACK_CHANNEL_ID not provided - Slack integration disabled
+⚠️ Gmail credentials not provided - Email notifications disabled
+📊 Google Sheets Integration initialized
+⚠️ SLACK_CHANNEL_ID not provided - Slack integration disabled
+⚠️ Gmail credentials not provided - Email notifications disabled
+🚀 Starting Job Tracker Application...
+✅ Google Sheets credentials found
+🚀 Initializing Job Tracker Service...
+🔧 Initializing Google Sheets service...
+❌ GOOGLE_SHEETS_ID environment variable not set
+📝 Available environment variables: [
+  'GOOGLE_PRIVATE_KEY',
+  'GOOGLE_SHEETS_ID',
+  'GOOGLE_SERVICE_ACCOUNT_EMAIL'
+]
+❌ Failed to initialize Google Sheets: Error: Google Sheets ID not configured
+    at GoogleSheetsService.initialize (/home/runner/workspace/server/services/googleSheets.ts:25:15)
+    at JobTrackerService.initialize (/home/runner/workspace/server/services/jobTracker.ts:33:31)
+    at startServer (/home/runner/workspace/server/index.ts:67:24)
+    at <anonymous> (/home/runner/workspace/server/index.ts:115:9)
+    at <anonymous> (/home/runner/workspace/server/index.ts:147:1)
+Error details: {
+  message: 'Google Sheets ID not configured',
+  stack: 'Error: Google Sheets ID not configured\n' +
+    '    at GoogleSheetsService.initialize (/home/runner/workspace/server/services/googleSheets.ts:25:15)\n' +
+    '    at JobTrackerService.initialize (/home/runner/workspace/server/services/jobTracker.ts:33:31)\n' +
+    '    at startServer (/home/runner/workspace/server/index.ts:67:24)\n' +
+    '    at <anonymous> (/home/runner/workspace/server/index.ts:115:9)\n' +
+    '    at <anonymous> (/home/runner/workspace/server/index.ts:147:1)',
+  spreadsheetId: 'Not set'
+}
+❌ Failed to initialize Job Tracker Service: Error: Google Sheets ID not configured
+    at GoogleSheetsService.initialize (/home/runner/workspace/server/services/googleSheets.ts:25:15)
+    at JobTrackerService.initialize (/home/runner/workspace/server/services/jobTracker.ts:33:31)
+    at startServer (/home/runner/workspace/server/index.ts:67:24)
+    at <anonymous> (/home/runner/workspace/server/index.ts:115:9)
+    at <anonymous> (/home/runner/workspace/server/index.ts:147:1)
+⚠️ Job Tracker Service failed to initialize: Error: Google Sheets ID not configured
+    at GoogleSheetsService.initialize (/home/runner/workspace/server/services/googleSheets.ts:25:15)
+    at JobTrackerService.initialize (/home/runner/workspace/server/services/jobTracker.ts:33:31)
+    at startServer (/home/runner/workspace/server/index.ts:67:24)
+    at <anonymous> (/home/runner/workspace/server/index.ts:115:9)
+    at <anonymous> (/home/runner/workspace/server/index.ts:147:1)
+🔧 Initializing Google Sheets service...
+❌ GOOGLE_SHEETS_ID environment variable not set
+📝 Available environment variables: [
+  'GOOGLE_PRIVATE_KEY',
+  'GOOGLE_SHEETS_ID',
+  'GOOGLE_SERVICE_ACCOUNT_EMAIL'
+]
+❌ Failed to initialize Google Sheets: Error: Google Sheets ID not configured
+    at GoogleSheetsService.initialize (/home/runner/workspace/server/services/googleSheets.ts:25:15)
+    at HealthMonitorService.initialize (/home/runner/workspace/server/services/healthMonitor.ts:11:31)
+    at startServer (/home/runner/workspace/server/index.ts:75:27)
+    at async <anonymous> (/home/runner/workspace/server/index.ts:115:3)
+Error details: {
+  message: 'Google Sheets ID not configured',
+  stack: 'Error: Google Sheets ID not configured\n' +
+    '    at GoogleSheetsService.initialize (/home/runner/workspace/server/services/googleSheets.ts:25:15)\n' +
+    '    at HealthMonitorService.initialize (/home/runner/workspace/server/services/healthMonitor.ts:11:31)\n' +
+    '    at startServer (/home/runner/workspace/server/index.ts:75:27)\n' +
+    '    at async <anonymous> (/home/runner/workspace/server/index.ts:115:3)',
+  spreadsheetId: 'Not set'
+}
+⚠️ Google Sheets not available for health monitoring
+✅ Health Monitor Service initialized
+🚀 Initializing Scheduler Service...
+🚀 Initializing Job Tracker Service...
+🔧 Initializing Google Sheets service...
+❌ GOOGLE_SHEETS_ID environment variable not set
+📝 Available environment variables: [
+  'GOOGLE_PRIVATE_KEY',
+  'GOOGLE_SHEETS_ID',
+  'GOOGLE_SERVICE_ACCOUNT_EMAIL'
+]
+❌ Failed to initialize Google Sheets: Error: Google Sheets ID not configured
+    at GoogleSheetsService.initialize (/home/runner/workspace/server/services/googleSheets.ts:25:15)
+    at JobTrackerService.initialize (/home/runner/workspace/server/services/jobTracker.ts:33:31)
+    at SchedulerService.initialize (/home/runner/workspace/server/scheduler.ts:19:29)
+    at startServer (/home/runner/workspace/server/index.ts:83:23)
+    at async <anonymous> (/home/runner/workspace/server/index.ts:115:3)
+Error details: {
+  message: 'Google Sheets ID not configured',
+  stack: 'Error: Google Sheets ID not configured\n' +
+    '    at GoogleSheetsService.initialize (/home/runner/workspace/server/services/googleSheets.ts:25:15)\n' +
+    '    at JobTrackerService.initialize (/home/runner/workspace/server/services/jobTracker.ts:33:31)\n' +
+    '    at SchedulerService.initialize (/home/runner/workspace/server/scheduler.ts:19:29)\n' +
+    '    at startServer (/home/runner/workspace/server/index.ts:83:23)\n' +
+    '    at async <anonymous> (/home/runner/workspace/server/index.ts:115:3)',
+  spreadsheetId: 'Not set'
+}
+❌ Failed to initialize Job Tracker Service: Error: Google Sheets ID not configured
+    at GoogleSheetsService.initialize (/home/runner/workspace/server/services/googleSheets.ts:25:15)
+    at JobTrackerService.initialize (/home/runner/workspace/server/services/jobTracker.ts:33:31)
+    at SchedulerService.initialize (/home/runner/workspace/server/scheduler.ts:19:29)
+    at startServer (/home/runner/workspace/server/index.ts:83:23)
+    at async <anonymous> (/home/runner/workspace/server/index.ts:115:3)
+❌ Failed to initialize Scheduler Service: Error: Google Sheets ID not configured
+    at GoogleSheetsService.initialize (/home/runner/workspace/server/services/googleSheets.ts:25:15)
+    at JobTrackerService.initialize (/home/runner/workspace/server/services/jobTracker.ts:33:31)
+    at SchedulerService.initialize (/home/runner/workspace/server/scheduler.ts:19:29)
+    at startServer (/home/runner/workspace/server/index.ts:83:23)
+    at async <anonymous> (/home/runner/workspace/server/index.ts:115:3)
+⚠️ Scheduler Service failed to initialize: Error: Google Sheets ID not configured
+    at GoogleSheetsService.initialize (/home/runner/workspace/server/services/googleSheets.ts:25:15)
+    at JobTrackerService.initialize (/home/runner/workspace/server/services/jobTracker.ts:33:31)
+    at SchedulerService.initialize (/home/runner/workspace/server/scheduler.ts:19:29)
+    at startServer (/home/runner/workspace/server/index.ts:83:23)
+    at async <anonymous> (/home/runner/workspace/server/index.ts:115:3)
+⚠️ Some services failed to initialize: JobTracker, Scheduler
+🔧 System will continue running with available services
+✅ Application started successfully
+📊 System configured with 0 companies for tracking
+📊 Google Sheets Integration initialized
+⚠️ SLACK_CHANNEL_ID not provided - Slack integration disabled
+⚠️ Gmail credentials not provided - Email notifications disabled
+🚀 Initializing Scheduler Service...
+🚀 Initializing Job Tracker Service...
+🔧 Initializing Google Sheets service...
+❌ GOOGLE_SHEETS_ID environment variable not set
+📝 Available environment variables: [
+  'GOOGLE_PRIVATE_KEY',
+  'GOOGLE_SHEETS_ID',
+  'GOOGLE_SERVICE_ACCOUNT_EMAIL'
+]
+❌ Failed to initialize Google Sheets: Error: Google Sheets ID not configured
+    at GoogleSheetsService.initialize (/home/runner/workspace/server/services/googleSheets.ts:25:15)
+    at JobTrackerService.initialize (/home/runner/workspace/server/services/jobTracker.ts:33:31)
+    at SchedulerService.initialize (/home/runner/workspace/server/scheduler.ts:19:29)
+    at registerRoutes (/home/runner/workspace/server/routes.ts:13:26)
+    at <anonymous> (/home/runner/workspace/server/index.ts:116:24)
+Error details: {
+  message: 'Google Sheets ID not configured',
+  stack: 'Error: Google Sheets ID not configured\n' +
+    '    at GoogleSheetsService.initialize (/home/runner/workspace/server/services/googleSheets.ts:25:15)\n' +
+    '    at JobTrackerService.initialize (/home/runner/workspace/server/services/jobTracker.ts:33:31)\n' +
+    '    at SchedulerService.initialize (/home/runner/workspace/server/scheduler.ts:19:29)\n' +
+    '    at registerRoutes (/home/runner/workspace/server/routes.ts:13:26)\n' +
+    '    at <anonymous> (/home/runner/workspace/server/index.ts:116:24)',
+  spreadsheetId: 'Not set'
+}
+❌ Failed to initialize Job Tracker Service: Error: Google Sheets ID not configured
+    at GoogleSheetsService.initialize (/home/runner/workspace/server/services/googleSheets.ts:25:15)
+    at JobTrackerService.initialize (/home/runner/workspace/server/services/jobTracker.ts:33:31)
+    at SchedulerService.initialize (/home/runner/workspace/server/scheduler.ts:19:29)
+    at registerRoutes (/home/runner/workspace/server/routes.ts:13:26)
+    at <anonymous> (/home/runner/workspace/server/index.ts:116:24)
+❌ Failed to initialize Scheduler Service: Error: Google Sheets ID not configured
+    at GoogleSheetsService.initialize (/home/runner/workspace/server/services/googleSheets.ts:25:15)
+    at JobTrackerService.initialize (/home/runner/workspace/server/services/jobTracker.ts:33:31)
+    at SchedulerService.initialize (/home/runner/workspace/server/scheduler.ts:19:29)
+    at registerRoutes (/home/runner/workspace/server/routes.ts:13:26)
+    at <anonymous> (/home/runner/workspace/server/index.ts:116:24)
+node:internal/process/promises:391
+    triggerUncaughtException(err, true /* fromPromise */);
+    ^
+
+Error: Google Sheets ID not configured
+    at GoogleSheetsService.initialize (/home/runner/workspace/server/services/googleSheets.ts:25:15)
+    at JobTrackerService.initialize (/home/runner/workspace/server/services/jobTracker.ts:33:31)
+    at SchedulerService.initialize (/home/runner/workspace/server/scheduler.ts:19:29)
+    at registerRoutes (/home/runner/workspace/server/routes.ts:13:26)
+    at <anonymous> (/home/runner/workspace/server/index.ts:116:24)
+
+Node.js v20.19.3
