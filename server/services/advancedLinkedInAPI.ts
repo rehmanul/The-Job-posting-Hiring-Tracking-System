@@ -92,7 +92,7 @@ export class AdvancedLinkedInAPI {
         q: 'criteria',
         organizationalEntity: `urn:li:organization:${orgId}`,
         actions: 'List(SHARE,ADMIN_COMMENT)',
-        'timeRange.start': new Date('2025-08-08').getTime().toString(),
+        'timeRange.start': new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).getTime().toString(), // Last 7 days
         'timeRange.end': new Date().getTime().toString(),
         count: '50'
       });
@@ -158,7 +158,8 @@ export class AdvancedLinkedInAPI {
     for (const notification of notifications) {
       try {
         const notificationDate = new Date(notification.lastModifiedAt);
-        if (notificationDate < new Date('2025-08-08')) continue;
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        if (notificationDate < sevenDaysAgo) continue;
 
         const hire = await this.extractProfessionalHireFromNotification(notification, company);
         if (hire) {
@@ -179,7 +180,8 @@ export class AdvancedLinkedInAPI {
     for (const post of posts) {
       try {
         const postDate = new Date(post.lastModifiedAt || post.createdAt);
-        if (postDate < new Date('2025-08-08')) continue;
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        if (postDate < sevenDaysAgo) continue;
 
         let text = '';
         if (post.specificContent?.['com.linkedin.ugc.ShareContent']?.shareCommentary?.text) {

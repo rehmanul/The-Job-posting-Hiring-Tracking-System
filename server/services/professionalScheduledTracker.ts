@@ -66,7 +66,7 @@ export class ProfessionalScheduledTracker {
       const newHires = await this.linkedinAPI.trackNewHiresProfessionally();
       
       // Phase 2: Professional job tracking (NEW jobs only)
-      console.log('💼 Phase 2: Professional job tracking (NEW jobs from Aug 15)');
+      console.log('💼 Phase 2: Professional job tracking (NEW jobs from yesterday)');
       const newJobs = await this.jobTracker.trackNewJobs();
       
       // Phase 3: Professional data processing
@@ -226,8 +226,8 @@ export class ProfessionalScheduledTracker {
       accuracy: '92-97%',
       frequency: 'Every 4 hours',
       sources: ['LinkedIn Webhook', 'LinkedIn API', 'Career Pages'],
-      hireStartDate: '2025-08-08',
-      jobStartDate: '2025-08-15',
+      hireStartDate: 'Last 7 days',
+      jobStartDate: 'Yesterday onwards',
       rateLimits: this.linkedinAPI.getRateLimitStatus(),
       nextRun: this.isRunning ? 'Every 4 hours' : 'Stopped'
     };

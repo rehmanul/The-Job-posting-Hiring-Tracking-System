@@ -2,7 +2,7 @@ import { storage } from '../storage';
 import type { Company, InsertJobPosting } from '@shared/schema';
 
 export class EnhancedJobTracker {
-  private startDate = new Date('2025-08-15'); // Start from today
+  private startDate = new Date(Date.now() - 24 * 60 * 60 * 1000); // Start from yesterday
 
   async trackNewJobs(): Promise<InsertJobPosting[]> {
     console.log(`🔍 Enhanced job tracking starting from ${this.startDate.toISOString()}`);

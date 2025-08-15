@@ -325,30 +325,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/system/start-tracking", async (req, res) => {
     try {
-      const { ProfessionalScheduledTracker } = await import('./services/professionalScheduledTracker');
-      
-      if (!enhancedTracker) {
-        enhancedTracker = new ProfessionalScheduledTracker();
+      if (schedulerService) {
+        await schedulerService.start();
       }
-      
-      enhancedTracker.start();
       
       res.json({ 
         success: true, 
-        message: "Professional tracking started - 92-97% accuracy, NEW items only",
+        message: "Real tracking started with working services",
         config: {
-          mode: "Professional",
-          hireStartDate: "2025-08-08",
-          jobStartDate: "2025-08-15", 
-          frequency: "Every 4 hours",
-          accuracy: "92-97%",
-          sources: ["LinkedIn Webhook", "LinkedIn API", "Career Pages"],
-          validation: "Advanced professional validation"
+          mode: "Production",
+          services: ["AggressiveHireTracker", "WebsiteScraper", "LinkedInScraper"],
+          frequency: "Continuous"
         }
       });
     } catch (error: any) {
-      console.error("Error starting professional tracking:", error);
-      res.status(500).json({ error: "Failed to start professional tracking" });
+      console.error("Error starting tracking:", error);
+      res.status(500).json({ error: "Failed to start tracking" });
     }
   });
 
@@ -431,15 +423,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/system/status", async (req, res) => {
     try {
-      const status = enhancedTracker ? enhancedTracker.getProfessionalStatus() : { 
-        isRunning: false, 
-        mode: 'Professional',
-        accuracy: '92-97%'
+      const status = {
+        isRunning: schedulerService ? schedulerService.isRunning() : false,
+        mode: 'Production',
+        services: ['AggressiveHireTracker', 'WebsiteScraper', 'LinkedInScraper']
       };
       res.json(status);
     } catch (error: any) {
-      console.error("Error getting professional system status:", error);
-      res.status(500).json({ error: "Failed to get professional system status" });
+      console.error("Error getting system status:", error);
+      res.status(500).json({ error: "Failed to get system status" });
     }
   });
 
