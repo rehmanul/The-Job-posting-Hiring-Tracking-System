@@ -206,6 +206,18 @@ export class JobTrackerService {
           
           for (const jobData of jobs) {
             try {
+              // Check if job already exists (NEW jobs only)
+              const existingJobs = await storage.getJobPostings();
+              const isDuplicate = existingJobs.some(existing => 
+                existing.jobTitle === jobData.jobTitle && 
+                existing.company === company.name
+              );
+              
+              if (isDuplicate) {
+                console.log(`🔄 Skipping existing job: ${jobData.jobTitle} at ${company.name}`);
+                continue;
+              }
+              
               const job = await storage.createJobPosting({
                 ...jobData,
                 company: company.name,
@@ -215,12 +227,8 @@ export class JobTrackerService {
               await this.slackService.sendJobAlert(job);
               await this.emailService.sendJobAlert(job);
               
-              console.log(`✅ New job processed: ${job.jobTitle} at ${job.company}`);
+              console.log(`✅ NEW job processed: ${job.jobTitle} at ${job.company}`);
             } catch (err) {
-              if ((err as Error).message.includes('Duplicate job detected')) {
-                console.log(`🔄 Skipping duplicate job: ${jobData.jobTitle} at ${company.name}`);
-                continue;
-              }
               console.error('❌ Failed to create job posting:', err, jobData);
             }
           }
@@ -315,6 +323,18 @@ export class JobTrackerService {
                 console.warn(`⚠️ Skipping hire with missing fields:`, JSON.stringify(hireData));
                 continue;
               }
+              // Check if hire already exists (NEW hires only)
+              const existingHires = await storage.getNewHires();
+              const isDuplicate = existingHires.some(existing => 
+                existing.personName === hireData.personName && 
+                existing.company === company.name
+              );
+              
+              if (isDuplicate) {
+                console.log(`🔄 Skipping existing hire: ${hireData.personName} at ${company.name}`);
+                continue;
+              }
+              
               let hire;
               try {
                 hire = await storage.createNewHire({
@@ -322,10 +342,6 @@ export class JobTrackerService {
                   company: company.name,
                 });
               } catch (err) {
-                if ((err as Error).message.includes('Duplicate hire detected')) {
-                  console.log(`🔄 Skipping duplicate hire: ${hireData.personName} at ${hireData.company}`);
-                  continue;
-                }
                 console.error('❌ Failed to create new hire in storage:', err, hireData);
                 continue;
               }

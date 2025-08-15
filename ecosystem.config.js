@@ -1,8 +1,7 @@
 module.exports = {
   apps: [{
     name: 'jobtracker-expert',
-    script: 'npm',
-    args: 'start',
+    script: 'dist/index.js',
     instances: 1,
     autorestart: true,
     watch: false,
@@ -10,6 +9,9 @@ module.exports = {
     env: {
       NODE_ENV: 'production',
       PORT: 3000
-    }
+    },
+    error_file: '/var/log/pm2/jobtracker-error.log',
+    out_file: '/var/log/pm2/jobtracker-out.log',
+    log_file: '/var/log/pm2/jobtracker.log'
   }]
 };
