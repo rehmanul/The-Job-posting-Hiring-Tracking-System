@@ -3,8 +3,8 @@
 ## 🚀 One-Shot Deployment
 
 ### 1. Create Droplet
-- **OS**: Ubuntu 22.04 LTS
-- **Size**: Basic $6/month (1GB RAM, 1 vCPU)
+- **OS**: Ubuntu 25.04
+- **Size**: Basic $8/month (1GB RAM, 1 Intel CPU, 35GB NVMe SSD)
 - **Region**: Choose closest to your users
 - **Authentication**: SSH Key (recommended)
 
@@ -146,4 +146,4 @@ tar -czf jobtracker_backup_$(date +%Y%m%d).tar.gz /var/www/jobtracker
 ---
 
 **Total deployment time: ~5 minutes**
-**Monthly cost: $6 (Basic Droplet)**
+**Monthly cost: $8 (1GB RAM, 1 Intel CPU, 35GB NVMe SSD)**

@@ -6,9 +6,13 @@ echo "🚀 Starting JobTracker Expert deployment on DigitalOcean..."
 # Update system
 sudo apt update && sudo apt upgrade -y
 
-# Install Node.js 20
+# Install Node.js 20 (compatible with Ubuntu 25.04)
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs
+
+# Verify installation
+node --version
+npm --version
 
 # Install PM2 globally
 sudo npm install -g pm2
