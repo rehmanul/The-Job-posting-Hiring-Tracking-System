@@ -100,8 +100,85 @@ export class AggressiveHireTracker {
 
   private async scrapeLinkedInDirect(companyName: string, linkedinUrl?: string): Promise<InsertNewHire[]> {
     if (!linkedinUrl) return [];
+    
+    // Use LinkedIn API if available
+    if (process.env.LINKEDIN_ACCESS_TOKEN) {
+      return await this.getLinkedInAPIHires(companyName, linkedinUrl);
+    }
+    
     const content = await this.getPageContent(linkedinUrl + '/posts/');
     return this.extractHiresFromContent(content, companyName, 'LinkedIn');
+  }
+  
+  private async getLinkedInAPIHires(companyName: string, linkedinUrl: string): Promise<InsertNewHire[]> {
+    try {
+      const orgId = this.extractOrgId(linkedinUrl);
+      if (!orgId) return [];
+      
+      const response = await fetch(`https://api.linkedin.com/rest/organizationalEntityNotifications?q=criteria&organizationalEntity=urn:li:organization:${orgId}&actions=List(SHARE)&count=50`, {
+        headers: {
+          'Authorization': `Bearer ${process.env.LINKEDIN_ACCESS_TOKEN}`,
+          'X-Restli-Protocol-Version': '2.0.0',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        console.warn(`LinkedIn API error: ${response.status}`);
+        return [];
+      }
+      
+      const data = await response.json();
+      const hires: InsertNewHire[] = [];
+      
+      for (const notification of data.elements || []) {
+        const hire = this.extractHireFromNotification(notification, companyName);
+        if (hire) hires.push(hire);
+      }
+      
+      console.log(`✅ LinkedIn API found ${hires.length} hires for ${companyName}`);
+      return hires;
+      
+    } catch (error) {
+      console.error('LinkedIn API error:', error);
+      return [];
+    }
+  }
+  
+  private extractOrgId(linkedinUrl: string): string | null {
+    const match = linkedinUrl.match(/\/company\/(\d+)/);
+    return match ? match[1] : null;
+  }
+  
+  private extractHireFromNotification(notification: any, companyName: string): InsertNewHire | null {
+    try {
+      const text = notification.text?.text || '';
+      const patterns = [
+        /welcome\s+([A-Z][a-z]+\s+[A-Z][a-z]+)\s+as\s+(?:our\s+new\s+)?([A-Z][a-zA-Z\s&-]+)/gi,
+        /([A-Z][a-z]+\s+[A-Z][a-z]+)\s+(?:has\s+)?joined\s+(?:us\s+)?as\s+([A-Z][a-zA-Z\s&-]+)/gi
+      ];
+      
+      for (const pattern of patterns) {
+        const match = pattern.exec(text);
+        if (match) {
+          return {
+            personName: match[1].trim(),
+            company: companyName,
+            position: match[2].trim(),
+            startDate: new Date(notification.lastModifiedAt || Date.now()),
+            linkedinProfile: null,
+            previousCompany: null,
+            source: 'LinkedIn API',
+            confidenceScore: '95',
+            foundDate: new Date()
+          };
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      return null;
+    }
   }
 
   private async scrapePressReleases(companyName: string): Promise<InsertNewHire[]> {

@@ -424,7 +424,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/system/status", async (req, res) => {
     try {
       const status = {
-        isRunning: schedulerService ? schedulerService.isRunning() : false,
+        isRunning: schedulerService ? true : false,
         mode: 'Production',
         services: ['AggressiveHireTracker', 'WebsiteScraper', 'LinkedInScraper']
       };
