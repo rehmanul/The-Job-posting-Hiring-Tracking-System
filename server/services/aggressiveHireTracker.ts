@@ -112,32 +112,45 @@ export class AggressiveHireTracker {
   
   private async getLinkedInAPIHires(companyName: string, linkedinUrl: string): Promise<InsertNewHire[]> {
     try {
-      const orgId = this.extractOrgId(linkedinUrl);
-      if (!orgId) return [];
+      console.log(`🔗 Attempting LinkedIn API for ${companyName}`);
+      console.log(`🔗 LinkedIn URL: ${linkedinUrl}`);
+      console.log(`🔗 Access Token: ${process.env.LINKEDIN_ACCESS_TOKEN ? 'Present' : 'Missing'}`);
       
-      const response = await fetch(`https://api.linkedin.com/rest/organizationalEntityNotifications?q=criteria&organizationalEntity=urn:li:organization:${orgId}&actions=List(SHARE)&count=50`, {
-        headers: {
-          'Authorization': `Bearer ${process.env.LINKEDIN_ACCESS_TOKEN}`,
-          'X-Restli-Protocol-Version': '2.0.0',
-          'Content-Type': 'application/json'
+      // Try multiple API endpoints
+      const endpoints = [
+        `https://api.linkedin.com/rest/posts?q=author&author=${encodeURIComponent(linkedinUrl)}&count=50`,
+        `https://api.linkedin.com/rest/organizationAcls?q=roleAssignee&projection=(elements*(organizationalTarget~(localizedName,vanityName)))&count=50`
+      ];
+      
+      for (const endpoint of endpoints) {
+        console.log(`🔗 Trying endpoint: ${endpoint}`);
+        
+        const response = await fetch(endpoint, {
+          headers: {
+            'Authorization': `Bearer ${process.env.LINKEDIN_ACCESS_TOKEN}`,
+            'X-Restli-Protocol-Version': '2.0.0',
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        console.log(`🔗 Response status: ${response.status}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log(`🔗 Response data:`, JSON.stringify(data, null, 2).substring(0, 500));
+          
+          const hires = this.extractHiresFromAPIResponse(data, companyName);
+          if (hires.length > 0) {
+            console.log(`✅ LinkedIn API found ${hires.length} hires for ${companyName}`);
+            return hires;
+          }
+        } else {
+          const errorText = await response.text();
+          console.warn(`LinkedIn API error ${response.status}: ${errorText}`);
         }
-      });
-      
-      if (!response.ok) {
-        console.warn(`LinkedIn API error: ${response.status}`);
-        return [];
       }
       
-      const data = await response.json();
-      const hires: InsertNewHire[] = [];
-      
-      for (const notification of data.elements || []) {
-        const hire = this.extractHireFromNotification(notification, companyName);
-        if (hire) hires.push(hire);
-      }
-      
-      console.log(`✅ LinkedIn API found ${hires.length} hires for ${companyName}`);
-      return hires;
+      return [];
       
     } catch (error) {
       console.error('LinkedIn API error:', error);
@@ -145,27 +158,43 @@ export class AggressiveHireTracker {
     }
   }
   
-  private extractOrgId(linkedinUrl: string): string | null {
-    const match = linkedinUrl.match(/\/company\/(\d+)/);
-    return match ? match[1] : null;
+  private extractHiresFromAPIResponse(data: any, companyName: string): InsertNewHire[] {
+    const hires: InsertNewHire[] = [];
+    
+    try {
+      // Handle different API response formats
+      const elements = data.elements || data.posts || [];
+      
+      for (const item of elements) {
+        const text = item.commentary?.text || item.text?.text || item.content || '';
+        if (text) {
+          const hire = this.extractHireFromText(text, companyName);
+          if (hire) hires.push(hire);
+        }
+      }
+    } catch (error) {
+      console.error('Error extracting hires from API response:', error);
+    }
+    
+    return hires;
   }
   
-  private extractHireFromNotification(notification: any, companyName: string): InsertNewHire | null {
+  private extractHireFromText(text: string, companyName: string): InsertNewHire | null {
     try {
-      const text = notification.text?.text || '';
       const patterns = [
         /welcome\s+([A-Z][a-z]+\s+[A-Z][a-z]+)\s+as\s+(?:our\s+new\s+)?([A-Z][a-zA-Z\s&-]+)/gi,
-        /([A-Z][a-z]+\s+[A-Z][a-z]+)\s+(?:has\s+)?joined\s+(?:us\s+)?as\s+([A-Z][a-zA-Z\s&-]+)/gi
+        /([A-Z][a-z]+\s+[A-Z][a-z]+)\s+(?:has\s+)?joined\s+(?:us\s+)?as\s+([A-Z][a-zA-Z\s&-]+)/gi,
+        /excited\s+to\s+announce\s+([A-Z][a-z]+\s+[A-Z][a-z]+)\s+as\s+(?:our\s+new\s+)?([A-Z][a-zA-Z\s&-]+)/gi
       ];
       
       for (const pattern of patterns) {
         const match = pattern.exec(text);
-        if (match) {
+        if (match && this.isValidHire(match[1], match[2])) {
           return {
             personName: match[1].trim(),
             company: companyName,
             position: match[2].trim(),
-            startDate: new Date(notification.lastModifiedAt || Date.now()),
+            startDate: new Date(),
             linkedinProfile: null,
             previousCompany: null,
             source: 'LinkedIn API',
