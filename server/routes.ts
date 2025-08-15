@@ -343,41 +343,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const linkedinWebhook = new LinkedInWebhookService();
   const webhookHandler = WebhookHandler.getInstance();
   
-  // LinkedIn webhook endpoint - Enhanced for LinkedIn validation
-  app.all("/api/linkedin/webhook", (req, res) => {
-    // Set proper headers for LinkedIn
-    res.set({
-      'Content-Type': 'text/plain',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-    });
-    
-    console.log(`🔍 LinkedIn webhook ${req.method}:`, {
-      query: req.query,
-      body: req.body,
-      headers: req.headers['user-agent']
-    });
-    
-    // Handle OPTIONS preflight
-    if (req.method === 'OPTIONS') {
-      return res.status(200).send('OK');
-    }
-    
-    // Handle challenge validation (GET or POST)
-    const challenge = req.query.challenge || req.body?.challenge;
+  // LinkedIn webhook - Ultra simple for validation
+  app.get("/api/linkedin/webhook", (req, res) => {
+    const challenge = req.query.challenge;
     if (challenge) {
-      console.log('✅ Challenge validation:', challenge);
-      return res.status(200).send(String(challenge));
+      res.status(200).send(challenge);
+    } else {
+      res.status(200).send('OK');
     }
-    
-    // Handle webhook events
-    if (req.method === 'POST') {
-      console.log('📨 LinkedIn webhook event received');
-      return res.status(200).send('OK');
-    }
-    
-    // Default response
+  });
+  
+  app.post("/api/linkedin/webhook", (req, res) => {
+    console.log('LinkedIn webhook event:', req.body);
     res.status(200).send('OK');
   });
   
