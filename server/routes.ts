@@ -42,20 +42,7 @@ import { WebhookHandler } from "./services/webhookHandler";
 let schedulerService: SchedulerService | null = null;
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // LinkedIn webhook - absolute minimal
-  app.get("/api/linkedin/webhook", (req, res) => {
-    console.log('WEBHOOK GET:', req.query);
-    if (req.query.challenge) {
-      res.send(req.query.challenge);
-    } else {
-      res.send('OK');
-    }
-  });
   
-  app.post("/api/linkedin/webhook", (req, res) => {
-    console.log('WEBHOOK POST:', req.body);
-    res.send('OK');
-  });
 
   // Initialize scheduler service but don't auto-start
   schedulerService = new SchedulerService();
@@ -356,37 +343,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const linkedinWebhook = new LinkedInWebhookService();
   const webhookHandler = WebhookHandler.getInstance();
   
-  // LinkedIn webhook endpoint - MUST be before other routes
-  app.all("/api/linkedin/webhook", (req, res) => {
-    // Prevent caching
-    res.set({
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0'
-    });
+  // LinkedIn webhook endpoint - Simple validation
+  app.get("/api/linkedin/webhook", (req, res) => {
+    console.log('🔍 LinkedIn webhook GET validation:', req.query);
     
-    console.log(`🔍 LinkedIn webhook ${req.method}:`, {
-      query: req.query,
-      url: req.url,
-      timestamp: new Date().toISOString()
-    });
-
-    // Handle challenge validation
-    const challenge = req.query.challenge || req.body?.challenge;
+    const challenge = req.query.challenge;
     if (challenge) {
-      console.log('✅ Challenge validation:', challenge);
-      return res.status(200).type('text/plain').send(String(challenge));
+      console.log('✅ Challenge response:', challenge);
+      return res.status(200).send(challenge);
     }
-
-    // Handle webhook events (POST)
-    if (req.method === 'POST') {
-      console.log('📨 LinkedIn webhook event received');
-      return linkedinWebhook.handleWebhook(req, res);
-    }
-
-    // Default response
-    console.log('ℹ️ Default webhook response');
-    res.status(200).type('text/plain').send('OK');
+    
+    res.status(200).send('OK');
+  });
+  
+  app.post("/api/linkedin/webhook", (req, res) => {
+    console.log('📨 LinkedIn webhook POST event:', req.body);
+    res.status(200).json({ success: true });
   });
   
   app.get("/api/linkedin/auth", (req, res) => {
