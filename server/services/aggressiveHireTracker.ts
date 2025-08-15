@@ -205,8 +205,33 @@ export class AggressiveHireTracker {
 
   private isValidHire(name: string, position: string): boolean {
     if (!name || !position) return false;
-    // Simplified validation
-    return name.split(' ').length >= 2 && position.length > 2 && position.length < 100;
+    
+    // Must have proper first and last name
+    const nameParts = name.split(' ');
+    if (nameParts.length < 2 || nameParts.length > 3) return false;
+    
+    // Reject sports players and garbage
+    const invalidNames = [
+      'wrexham', 'star', 'basketball', 'football', 'tennis', 'soccer',
+      'striker', 'midfielder', 'defender', 'goalkeeper', 'player',
+      'eagles', 'content', 'market', 'prop', 'tel', 'go'
+    ];
+    
+    const lowerName = name.toLowerCase();
+    if (invalidNames.some(invalid => lowerName.includes(invalid))) {
+      return false;
+    }
+    
+    // Must be proper business position
+    const businessKeywords = [
+      'ceo', 'cto', 'cfo', 'coo', 'director', 'manager', 'head',
+      'vice president', 'vp', 'president', 'senior', 'lead', 'officer',
+      'executive', 'principal', 'analyst', 'specialist', 'coordinator'
+    ];
+    
+    const posLower = position.toLowerCase();
+    return businessKeywords.some(keyword => posLower.includes(keyword)) &&
+           position.length > 2 && position.length < 100;
   }
 
   private cleanPosition(position: string): string {
