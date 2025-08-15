@@ -110,12 +110,15 @@ export class JobTrackerService {
     try {
       // Run tracking tasks sequentially - hires first, then jobs
       console.log('👥 Starting new hires scan...');
+      await this.logToDatabase('info', 'job_tracker', '👥 Starting new hires scan...');
       await this.trackNewHires();
       
       console.log('🔍 Starting job postings scan...');
+      await this.logToDatabase('info', 'job_tracker', '🔍 Starting job postings scan...');
       await this.trackJobPostings();
       
       console.log('📊 Updating analytics...');
+      await this.logToDatabase('info', 'job_tracker', '📊 Updating analytics...');
       await this.updateAnalytics();
       
       console.log('✅ Initial full tracking scan completed');
@@ -198,7 +201,9 @@ export class JobTrackerService {
       
       for (const company of activeCompanies) {
         try {
-          console.log(`🏢 Scanning ${company.name}...`);
+          const scanMessage = `🏢 Scanning ${company.name}...`;
+          console.log(scanMessage);
+          await this.logToDatabase('info', 'job_tracker', scanMessage);
           
           const jobs = await this.scrapeCompanyJobs(company);
           totalJobsFound += jobs.length;
@@ -227,7 +232,9 @@ export class JobTrackerService {
               await this.slackService.sendJobAlert(job);
               await this.emailService.sendJobAlert(job);
               
-              console.log(`✅ NEW job processed: ${job.jobTitle} at ${job.company}`);
+              const jobMessage = `✅ NEW job processed: ${job.jobTitle} at ${job.company}`;
+              console.log(jobMessage);
+              await this.logToDatabase('info', 'job_tracker', jobMessage);
             } catch (err) {
               console.error('❌ Failed to create job posting:', err, jobData);
             }
@@ -304,7 +311,9 @@ export class JobTrackerService {
         
         for (const company of batch) {
           try {
-            console.log(`🎯 AGGRESSIVE hire tracking for ${company.name}...`);
+            const hireMessage = `🎯 AGGRESSIVE hire tracking for ${company.name}...`;
+            console.log(hireMessage);
+            await this.logToDatabase('info', 'job_tracker', hireMessage);
             
             // NUCLEAR OPTION: Use aggressive tracker that bypasses all broken services
             const { AggressiveHireTracker } = await import('./aggressiveHireTracker.js');
@@ -312,7 +321,9 @@ export class JobTrackerService {
             await aggressiveTracker.initialize();
             
             const hires = await aggressiveTracker.trackCompanyHires(company.name, company.linkedinUrl || undefined);
-            console.log(`🚀 AGGRESSIVE tracker found ${hires.length} authentic hires`);
+            const foundMessage = `🚀 AGGRESSIVE tracker found ${hires.length} authentic hires`;
+            console.log(foundMessage);
+            await this.logToDatabase('info', 'job_tracker', foundMessage);
             
             await aggressiveTracker.close();
             totalHiresFound += hires.length;
@@ -360,7 +371,9 @@ export class JobTrackerService {
               } catch (err) {
                 console.error('❌ Failed to send email hire alert:', err, hire);
               }
-              console.log(`✅ New hire processed: ${hire.personName} at ${hire.company}`);
+              const processedMessage = `✅ New hire processed: ${hire.personName} at ${hire.company}`;
+              console.log(processedMessage);
+              await this.logToDatabase('info', 'job_tracker', processedMessage);
             }
             await this.delay(3000, 5000); // Shorter delay within batch
           } catch (error) {
@@ -375,7 +388,9 @@ export class JobTrackerService {
         }
       }
       
-      console.log(`✅ Hire scan completed: ${totalHiresFound} hires found from ${companiesScanned} companies`);
+      const completedMessage = `✅ Hire scan completed: ${totalHiresFound} hires found from ${companiesScanned} companies`;
+      console.log(completedMessage);
+      await this.logToDatabase('info', 'job_tracker', completedMessage);
       
       await this.recordHireScanAnalytics(totalHiresFound, companiesScanned);
       
@@ -569,6 +584,19 @@ export class JobTrackerService {
       console.log('🧹 Job Tracker Service cleanup complete');
     } catch (error) {
       console.error('❌ Error during cleanup:', error);
+    }
+  }
+  
+  private async logToDatabase(level: string, service: string, message: string): Promise<void> {
+    try {
+      await storage.createSystemLog({
+        level,
+        service,
+        message,
+        metadata: { timestamp: new Date().toISOString() }
+      });
+    } catch (error) {
+      // Ignore database logging errors
     }
   }
 }
