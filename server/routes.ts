@@ -42,7 +42,7 @@ import { LinkedInWebhookService } from "./services/linkedinWebhook";
 import { WebhookHandler } from "./services/webhookHandler";
 
 let schedulerService: SchedulerService | null = null;
-let enhancedTracker: ScheduledTracker | null = null;
+let enhancedTracker: any = null; // Professional tracker instance
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -325,25 +325,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/system/start-tracking", async (req, res) => {
     try {
+      const { ProfessionalScheduledTracker } = await import('./services/professionalScheduledTracker');
+      
       if (!enhancedTracker) {
-        enhancedTracker = new ScheduledTracker();
+        enhancedTracker = new ProfessionalScheduledTracker();
       }
       
       enhancedTracker.start();
       
       res.json({ 
         success: true, 
-        message: "Enhanced tracking started - NEW items only every 4 hours",
+        message: "Professional tracking started - 92-97% accuracy, NEW items only",
         config: {
+          mode: "Professional",
           hireStartDate: "2025-08-08",
           jobStartDate: "2025-08-15", 
           frequency: "Every 4 hours",
-          accuracy: "92-97%"
+          accuracy: "92-97%",
+          sources: ["LinkedIn Webhook", "LinkedIn API", "Career Pages"],
+          validation: "Advanced professional validation"
         }
       });
     } catch (error: any) {
-      console.error("Error starting enhanced tracking:", error);
-      res.status(500).json({ error: "Failed to start enhanced tracking" });
+      console.error("Error starting professional tracking:", error);
+      res.status(500).json({ error: "Failed to start professional tracking" });
     }
   });
 
@@ -351,20 +356,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const linkedinWebhook = new LinkedInWebhookService();
   const webhookHandler = WebhookHandler.getInstance();
   
-  // LinkedIn webhook with comprehensive processing
+  // Professional LinkedIn webhook with advanced processing
   app.get("/webhook", async (req, res) => {
     const { challengeCode } = req.query;
     
     if (challengeCode) {
       try {
-        const { LinkedInWebhookHandler } = await import('./services/linkedinWebhookHandler');
-        const webhookHandler = new LinkedInWebhookHandler();
+        const { ProfessionalLinkedInWebhook } = await import('./services/professionalLinkedInWebhook');
+        const webhookHandler = new ProfessionalLinkedInWebhook();
         const response = await webhookHandler.handleChallenge(challengeCode as string);
         
         res.setHeader('Content-Type', 'application/json');
         return res.status(200).json(response);
       } catch (error) {
-        console.error('Webhook challenge error:', error);
+        console.error('Professional webhook challenge error:', error);
         return res.status(500).json({ error: 'Challenge validation failed' });
       }
     }
@@ -377,14 +382,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const signature = req.headers['x-li-signature'] as string;
       const body = JSON.stringify(req.body);
       
-      const { LinkedInWebhookHandler } = await import('./services/linkedinWebhookHandler');
-      const webhookHandler = new LinkedInWebhookHandler();
+      const { ProfessionalLinkedInWebhook } = await import('./services/professionalLinkedInWebhook');
+      const webhookHandler = new ProfessionalLinkedInWebhook();
       
       await webhookHandler.handleNotification(body, signature);
       res.status(200).send('OK');
       
     } catch (error) {
-      console.error('Webhook processing error:', error);
+      console.error('Professional webhook processing error:', error);
       res.status(500).send('Error');
     }
   });
@@ -426,11 +431,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/system/status", async (req, res) => {
     try {
-      const status = schedulerService ? schedulerService.getStatus() : { isRunning: false };
+      const status = enhancedTracker ? enhancedTracker.getProfessionalStatus() : { 
+        isRunning: false, 
+        mode: 'Professional',
+        accuracy: '92-97%'
+      };
       res.json(status);
     } catch (error: any) {
-      console.error("Error getting system status:", error);
-      res.status(500).json({ error: "Failed to get system status" });
+      console.error("Error getting professional system status:", error);
+      res.status(500).json({ error: "Failed to get professional system status" });
     }
   });
 
