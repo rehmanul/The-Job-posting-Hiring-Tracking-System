@@ -37,6 +37,7 @@ try {
 import { insertCompanySchema } from "@shared/schema";
 import { LinkedInOAuth } from "./services/linkedinAuth";
 import { LinkedInWebhookService } from "./services/linkedinWebhook";
+import { WebhookHandler } from "./services/webhookHandler";
 
 let schedulerService: SchedulerService | null = null;
 
@@ -353,6 +354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const linkedinAuth = new LinkedInOAuth();
   const linkedinWebhook = new LinkedInWebhookService();
+  const webhookHandler = WebhookHandler.getInstance();
   
   // LinkedIn webhook endpoint - MUST be before other routes
   app.all("/api/linkedin/webhook", (req, res) => {
@@ -408,6 +410,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
+  // Enhanced webhook endpoints
+  app.post('/webhook/github', (req, res) => webhookHandler.handleGitHubWebhook(req, res));
+  app.post('/webhook/generic', (req, res) => webhookHandler.handleGenericWebhook(req, res));
+  
   // Test endpoint for webhook debugging
   app.get("/api/linkedin/webhook/test", (req, res) => {
     res.json({

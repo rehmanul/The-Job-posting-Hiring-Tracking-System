@@ -1,0 +1,36 @@
+{
+  "webhooks": {
+    "linkedin": {
+      "endpoint": "/api/linkedin/webhook",
+      "methods": ["GET", "POST"],
+      "description": "LinkedIn hire announcements and job updates"
+    },
+    "github": {
+      "endpoint": "/webhook/github",
+      "methods": ["POST"],
+      "description": "GitHub repository events for CI/CD",
+      "events": ["push", "pull_request", "release"]
+    },
+    "generic": {
+      "endpoint": "/webhook/generic",
+      "methods": ["POST"],
+      "description": "Generic webhook for third-party integrations"
+    }
+  },
+  "security": {
+    "github_signature_verification": true,
+    "rate_limiting": {
+      "enabled": true,
+      "max_requests": 100,
+      "window_minutes": 15
+    }
+  },
+  "development": {
+    "ngrok_tunnel": "https://your-ngrok-url.ngrok.io",
+    "local_port": 3000
+  },
+  "production": {
+    "base_url": "https://your-app.onrender.com",
+    "ssl_required": true
+  }
+}
