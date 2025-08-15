@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, timestamp, integer, decimal, boolean, jsonb } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
+import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
 export const companies = pgTable("companies", {
@@ -9,10 +9,14 @@ export const companies = pgTable("companies", {
   website: text("website"),
   linkedinUrl: text("linkedin_url"),
   careerPageUrl: text("career_page_url"),
+  industry: text("industry"),
+  location: text("location"),
   isActive: boolean("is_active").default(true),
   lastScanned: timestamp("last_scanned"),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
 });
+
 
 export const jobPostings = pgTable("job_postings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -34,6 +38,7 @@ export const newHires = pgTable("new_hires", {
   personName: text("person_name").notNull(),
   company: text("company").notNull(),
   position: text("position").notNull(),
+  previousCompany: text("previous_company"),
   startDate: timestamp("start_date"),
   linkedinProfile: text("linkedin_profile"),
   source: text("source").notNull(), // 'linkedin_scrape', 'linkedin_announcement', 'company_announcement'
@@ -75,6 +80,16 @@ export const systemLogs = pgTable("system_logs", {
   metadata: jsonb("metadata"),
 });
 
+export const linkedinTokens = pgTable("linkedin_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token"),
+  expiresAt: timestamp("expires_at"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertCompanySchema = createInsertSchema(companies).omit({
   id: true,
@@ -111,13 +126,28 @@ export const insertSystemLogSchema = createInsertSchema(systemLogs).omit({
   timestamp: true,
 });
 
+export const insertLinkedInTokenSchema = createInsertSchema(linkedinTokens).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
-export type Company = typeof companies.$inferSelect;
-export type JobPosting = typeof jobPostings.$inferSelect;
-export type NewHire = typeof newHires.$inferSelect;
-export type Analytics = typeof analytics.$inferSelect;
-export type HealthMetric = typeof healthMetrics.$inferSelect;
-export type SystemLog = typeof systemLogs.$inferSelect;
+export const SelectCompanySchema = createSelectSchema(companies);
+export const SelectJobPostingSchema = createSelectSchema(jobPostings);
+export const SelectNewHireSchema = createSelectSchema(newHires);
+export const SelectAnalyticsSchema = createSelectSchema(analytics);
+export const SelectHealthMetricSchema = createSelectSchema(healthMetrics);
+export const SelectSystemLogSchema = createSelectSchema(systemLogs);
+export const SelectLinkedInTokenSchema = createSelectSchema(linkedinTokens);
+
+export type Company = z.infer<typeof SelectCompanySchema>;
+export type JobPosting = z.infer<typeof SelectJobPostingSchema>;
+export type NewHire = z.infer<typeof SelectNewHireSchema>;
+export type Analytics = z.infer<typeof SelectAnalyticsSchema>;
+export type HealthMetric = z.infer<typeof SelectHealthMetricSchema>;
+export type SystemLog = z.infer<typeof SelectSystemLogSchema>;
+export type LinkedInToken = z.infer<typeof SelectLinkedInTokenSchema>;
 
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
 export type InsertJobPosting = z.infer<typeof insertJobPostingSchema>;
@@ -125,3 +155,4 @@ export type InsertNewHire = z.infer<typeof insertNewHireSchema>;
 export type InsertAnalytics = z.infer<typeof insertAnalyticsSchema>;
 export type InsertHealthMetric = z.infer<typeof insertHealthMetricSchema>;
 export type InsertSystemLog = z.infer<typeof insertSystemLogSchema>;
+export type InsertLinkedInToken = z.infer<typeof insertLinkedInTokenSchema>;

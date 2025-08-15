@@ -25,7 +25,6 @@ export const CREDENTIALS_CONFIG = {
     ]
   },
   google_sheets: {
-    credentials_file: "service_account.json",
     spreadsheet_id: process.env.GOOGLE_SHEETS_ID || "",
     companies_sheet: "Company Data",
     jobs_sheet: "Job Postings",

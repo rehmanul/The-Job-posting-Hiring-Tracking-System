@@ -75,7 +75,7 @@ export class GoogleSheetsService {
             'https://www.googleapis.com/auth/drive.file',
           ],
         });
-      } catch (keyError) {
+      } catch (keyError: any) {
         console.error('❌ Failed to create JWT with private key:', keyError.message);
         console.error('💡 Make sure your GOOGLE_PRIVATE_KEY is in proper PEM format');
         return;
@@ -87,8 +87,8 @@ export class GoogleSheetsService {
       
       console.log(`✅ Connected to Google Sheet: "${this.doc.title}"`);
       
-      // Ensure required sheets exist
-      await this.ensureSheets();
+      // Skip sheet creation - sheets already exist
+      console.log('📋 Using existing Google Sheets structure');
       
       // Test reading companies
       console.log('📋 Testing companies data retrieval...');
@@ -96,14 +96,10 @@ export class GoogleSheetsService {
       console.log(`📊 Found ${companies.length} companies in sheet`);
 
       this.isInitialized = true;
-    } catch (error) {
-      console.error('❌ Failed to initialize Google Sheets:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        spreadsheetId: this.spreadsheetId ? 'Set' : 'Not set'
-      });
-      throw error;
+    } catch (error: any) {
+      console.warn('⚠️ Failed to initialize Google Sheets:', error.message);
+      console.log('💡 Google Sheets integration will be disabled. To enable, set GOOGLE_SHEETS_ID and credentials in Secrets.');
+      this.isInitialized = false;
     }
   }
 
@@ -112,20 +108,46 @@ export class GoogleSheetsService {
 
     const requiredSheets = [
       'Company Data',
-      'Job Postings', 
+      'Job Postings',
       'New Hires',
-      'Analytics',
-      'Health Metrics'
+      'Activity Log',
+      'Health Metrics',
+      'Summary',
+      'Analytics'
     ];
 
     const existingTitles = this.doc.sheetsByIndex.map(sheet => sheet.title);
 
     for (const sheetTitle of requiredSheets) {
       if (!existingTitles.includes(sheetTitle)) {
-        await this.doc.addSheet({ 
-          title: sheetTitle,
-          headerValues: this.getHeadersForSheet(sheetTitle)
-        });
+        try {
+          await this.doc.addSheet({ 
+            title: sheetTitle,
+            headerValues: this.getHeadersForSheet(sheetTitle)
+          });
+          console.log(`✅ Created sheet "${sheetTitle}" with headers`);
+        } catch (error: any) {
+          if (error.message.includes('already exists')) {
+            console.log(`📄 Sheet "${sheetTitle}" already exists, skipping creation.`);
+          } else {
+            throw error;
+          }
+        }
+      } else {
+        // Ensure headers exist in existing sheets
+        try {
+          const sheet = this.doc.sheetsByTitle[sheetTitle];
+          await sheet.loadHeaderRow();
+          
+          // If no headers or empty, add them
+          if (!sheet.headerValues || sheet.headerValues.length === 0) {
+            const headers = this.getHeadersForSheet(sheetTitle);
+            await sheet.setHeaderRow(headers);
+            console.log(`✅ Added headers to existing sheet "${sheetTitle}"`);
+          }
+        } catch (error: any) {
+          console.log(`⚠️ Could not update headers for "${sheetTitle}": ${error.message}`);
+        }
       }
     }
   }
@@ -135,13 +157,17 @@ export class GoogleSheetsService {
       case 'Company Data':
         return ['Name', 'Website', 'Career Page URL', 'LinkedIn URL', 'Industry', 'Location', 'Is Active', 'Notes'];
       case 'Job Postings':
-        return ['Company', 'Job Title', 'Location', 'Department', 'Posted Date', 'Found Date', 'URL', 'Confidence Score', 'Source'];
+        return ['Company', 'Job Title', 'Location', 'Department', 'Date', 'Time', 'Job URL', 'Confidence Score'];
       case 'New Hires':
-        return ['Person Name', 'Company', 'Position', 'Start Date', 'LinkedIn Profile', 'Source', 'Confidence Score', 'Found Date'];
-      case 'Analytics':
-        return ['Date', 'Total Companies', 'Active Companies', 'Jobs Found', 'Hires Found', 'Successful Scans', 'Failed Scans', 'Avg Response Time'];
+        return ['Person Name', 'Company', 'Position', 'Start Date', 'Previous Company', 'LinkedIn Profile', 'Source', 'Confidence Score', 'Found Date', 'Verified'];
+      case 'Activity Log':
+        return ['Timestamp', 'Type', 'Company', 'Details', 'Status', 'Source'];
       case 'Health Metrics':
-        return ['Timestamp', 'Service', 'Status', 'Response Time', 'Error Message'];
+        return ['Timestamp', 'Service', 'Status', 'Response Time', 'Error Message', 'CPU Usage', 'Memory Usage', 'Details'];
+      case 'Summary':
+        return ['Report Type', 'Report Date', 'Period', 'Total Jobs', 'Total Hires', 'Active Companies', 'Growth Rate %', 'Top Company', 'Top Company Jobs', 'Remote Jobs', 'Most Active Day'];
+      case 'Analytics':
+        return ['Timestamp', 'Total Companies', 'Active Companies', 'Jobs Found Today', 'Hires Found Today', 'Successful Scans', 'Failed Scans', 'Avg Response Time', 'Details'];
       default:
         return ['Data'];
     }
@@ -174,13 +200,7 @@ export class GoogleSheetsService {
 
       for (const row of rows) {
         try {
-          // Log raw row data for debugging
-          console.log('🔍 Processing row:', {
-            Name: row.get('Name'),
-            Website: row.get('Website'),
-            'LinkedIn URL': row.get('LinkedIn URL'),
-            'Is Active': row.get('Is Active')
-          });
+          // Process row data
 
           const company: Company = {
             id: randomUUID(),
@@ -188,19 +208,16 @@ export class GoogleSheetsService {
             website: row.get('Website') || '',
             careerPageUrl: row.get('Career Page URL') || row.get('Careers URL') || '',
             linkedinUrl: row.get('LinkedIn URL') || '',
-            industry: row.get('Industry') || '',
-            location: row.get('Location') || '',
+            industry: row.get('Industry') || null,
+            location: row.get('Location') || null,
             isActive: this.parseBoolean(row.get('Is Active') || row.get('Active')),
-            notes: row.get('Notes') || '',
             createdAt: new Date(),
-            updatedAt: new Date()
+            updatedAt: new Date(),
+            lastScanned: null,
           };
 
           if (company.name && company.name.trim()) {
             companies.push(company);
-            console.log(`✅ Added company: ${company.name}`);
-          } else {
-            console.log('⚠️ Skipping row with empty company name');
           }
         } catch (rowError) {
           console.warn('⚠️ Failed to parse company row:', rowError);
@@ -211,7 +228,7 @@ export class GoogleSheetsService {
       this.isInitialized = true;
       return companies;
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Failed to load companies from Google Sheets:', error);
       return [];
     }
@@ -230,17 +247,15 @@ export class GoogleSheetsService {
       const sheet = this.doc.sheetsByTitle['Company Data'];
       if (!sheet) return;
 
+      // Only add data row - preserve all formatting
       await sheet.addRow({
         'Name': company.name,
         'Website': company.website || '',
         'Career Page URL': company.careerPageUrl || '',
         'LinkedIn URL': company.linkedinUrl || '',
-        'Industry': company.industry || '',
-        'Location': company.location || '',
         'Is Active': company.isActive ? 'TRUE' : 'FALSE',
-        'Notes': company.notes || ''
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Failed to sync company to Google Sheets:', error);
     }
   }
@@ -252,18 +267,37 @@ export class GoogleSheetsService {
       const sheet = this.doc.sheetsByTitle['Job Postings'];
       if (!sheet) return;
 
+      // Check for duplicates in Google Sheets
+      const rows = await sheet.getRows();
+      const isDuplicate = rows.some(row => 
+        row.get('Company')?.toLowerCase() === job.company.toLowerCase() &&
+        row.get('Job Title')?.toLowerCase() === job.jobTitle.toLowerCase() &&
+        row.get('Date') === (job.postedDate ? job.postedDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0])
+      );
+
+      if (isDuplicate) {
+        console.log(`🚫 Skipping duplicate job in Google Sheets: ${job.jobTitle} at ${job.company}`);
+        return;
+      }
+
+      const now = new Date();
+      const utcDate = now.toISOString().split('T')[0];
+      const utcTime = now.toISOString().split('T')[1].split('.')[0];
+
       await sheet.addRow({
-        'Company': job.company,
-        'Job Title': job.jobTitle,
-        'Location': job.location || '',
-        'Department': job.department || '',
-        'Posted Date': job.postedDate ? job.postedDate.toISOString().split('T')[0] : '',
-        'Found Date': job.foundDate ? job.foundDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        'URL': job.url || '',
-        'Confidence Score': job.confidenceScore || '',
-        'Source': job.source,
+        'Company': job.company || '',
+        'Job Title': job.jobTitle || '',
+        'Location': job.location || 'Remote/Not specified',
+        'Department': job.department || 'General',
+        'Date': job.postedDate ? job.postedDate.toISOString().split('T')[0] : utcDate,
+        'Time': job.foundDate ? job.foundDate.toISOString().split('T')[1].split('.')[0] : utcTime,
+        'Job URL': job.url || '',
+        'Confidence Score': job.confidenceScore || '90'
       });
-    } catch (error) {
+      
+      await this.logActivity('Job Found', job.company, `New job: ${job.jobTitle}`, 'Success');
+      
+    } catch (error: any) {
       console.error('❌ Failed to sync job posting to Google Sheets:', error);
     }
   }
@@ -275,40 +309,70 @@ export class GoogleSheetsService {
       const sheet = this.doc.sheetsByTitle['New Hires'];
       if (!sheet) return;
 
+      // Check for duplicates in Google Sheets
+      const rows = await sheet.getRows();
+      const isDuplicate = rows.some(row => 
+        row.get('Person Name')?.toLowerCase() === hire.personName.toLowerCase() &&
+        row.get('Company')?.toLowerCase() === hire.company.toLowerCase() &&
+        row.get('Position')?.toLowerCase() === hire.position.toLowerCase()
+      );
+
+      if (isDuplicate) {
+        console.log(`🚫 Skipping duplicate hire in Google Sheets: ${hire.personName} at ${hire.company}`);
+        return;
+      }
+
+      const utcDate = new Date().toISOString().split('T')[0];
+
       await sheet.addRow({
-        'Person Name': hire.personName,
-        'Company': hire.company,
-        'Position': hire.position,
-        'Start Date': hire.startDate ? hire.startDate.toISOString().split('T')[0] : '',
+        'Person Name': hire.personName || '',
+        'Company': hire.company || '',
+        'Position': hire.position || '',
+        'Start Date': hire.startDate ? hire.startDate.toISOString().split('T')[0] : utcDate,
+        'Previous Company': hire.previousCompany || '',
         'LinkedIn Profile': hire.linkedinProfile || '',
-        'Source': hire.source,
-        'Confidence Score': hire.confidenceScore || '',
-        'Found Date': hire.foundDate ? hire.foundDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        'Source': hire.source || 'LinkedIn',
+        'Confidence Score': hire.confidenceScore || '85',
+        'Found Date': hire.foundDate ? hire.foundDate.toISOString().split('T')[0] : utcDate,
+        'Verified': 'No'
       });
-    } catch (error) {
+      
+      await this.logActivity('Hire Detected', hire.company, `New hire: ${hire.personName} as ${hire.position}`, 'Success');
+      
+    } catch (error: any) {
       console.error('❌ Failed to sync new hire to Google Sheets:', error);
     }
   }
 
-  async syncAnalytics(analytics: Analytics): Promise<void> {
+  private async logActivity(type: string, company: string, details: string, status: string): Promise<void> {
     if (!this.doc || !this.isInitialized) return;
 
     try {
-      const sheet = this.doc.sheetsByTitle['Analytics'];
+      const sheet = this.doc.sheetsByTitle['Activity Log'];
       if (!sheet) return;
 
+      const utcTimestamp = new Date().toISOString().replace('T', ' ').split('.')[0] + ' UTC';
+
       await sheet.addRow({
-        'Date': analytics.date ? analytics.date.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        'Total Companies': analytics.totalCompanies || 0,
-        'Active Companies': analytics.activeCompanies || 0,
-        'Jobs Found': analytics.jobsFound || 0,
-        'Hires Found': analytics.hiresFound || 0,
-        'Successful Scans': analytics.successfulScans || 0,
-        'Failed Scans': analytics.failedScans || 0,
-        'Avg Response Time': analytics.avgResponseTime || 0,
+        'Timestamp': utcTimestamp,
+        'Type': type,
+        'Company': company,
+        'Details': details,
+        'Status': status,
+        'Source': 'Job Tracker'
       });
-    } catch (error) {
-      console.error('❌ Failed to sync analytics to Google Sheets:', error);
+    } catch (error: any) {
+      console.error('❌ Failed to log activity:', error);
+    }
+  }
+
+  async syncSystemStatus(status: string, details: string): Promise<void> {
+    if (!this.doc || !this.isInitialized) return;
+
+    try {
+      await this.logActivity('System Status', 'System', details, status);
+    } catch (error: any) {
+      console.error('❌ Failed to sync system status:', error);
     }
   }
 
@@ -319,15 +383,96 @@ export class GoogleSheetsService {
       const sheet = this.doc.sheetsByTitle['Health Metrics'];
       if (!sheet) return;
 
+      const utcTimestamp = new Date().toISOString().replace('T', ' ').split('.')[0] + ' UTC';
+
       await sheet.addRow({
-        'Timestamp': metric.timestamp ? metric.timestamp.toISOString() : new Date().toISOString(),
+        'Timestamp': utcTimestamp,
         'Service': metric.service,
         'Status': metric.status,
-        'Response Time': metric.responseTime?.toString() || '',
+        'Response Time': metric.responseTime ? `${metric.responseTime}ms` : '',
         'Error Message': metric.errorMessage || '',
+        'CPU Usage': '',
+        'Memory Usage': '',
+        'Details': metric.metadata ? JSON.stringify(metric.metadata) : ''
       });
-    } catch (error) {
-      console.error('❌ Failed to sync health metric to Google Sheets:', error);
+    } catch (error: any) {
+      console.error('❌ Failed to sync health metric:', error);
+    }
+  }
+
+  async syncAnalytics(analytics: Analytics): Promise<void> {
+    if (!this.doc || !this.isInitialized) return;
+
+    try {
+      const sheet = this.doc.sheetsByTitle['Analytics'];
+      if (!sheet) return;
+
+      const utcTimestamp = new Date().toISOString().replace('T', ' ').split('.')[0] + ' UTC';
+
+      await sheet.addRow({
+        'Timestamp': utcTimestamp,
+        'Total Companies': analytics.totalCompanies ?? 0,
+        'Active Companies': analytics.activeCompanies ?? 0,
+        'Jobs Found Today': analytics.jobsFound ?? 0,
+        'Hires Found Today': analytics.hiresFound ?? 0,
+        'Successful Scans': analytics.successfulScans ?? 0,
+        'Failed Scans': analytics.failedScans ?? 0,
+        'Avg Response Time': analytics.avgResponseTime ?? '',
+        'Details': analytics.metadata ? JSON.stringify(analytics.metadata) : ''
+      });
+    } catch (error: any) {
+      console.error('❌ Failed to sync analytics:', error);
+    }
+  }
+
+  async syncSummaryReport(reportData: {
+    type: 'Daily' | 'Weekly' | 'Monthly';
+    totalJobs: number;
+    totalHires: number;
+    activeCompanies: number;
+    growthRate: number;
+    topCompany: string;
+    topCompanyJobs: number;
+    remoteJobs: number;
+    mostActiveDay: string;
+  }): Promise<void> {
+    if (!this.doc || !this.isInitialized) return;
+
+    try {
+      const sheet = this.doc.sheetsByTitle['Summary'];
+      if (!sheet) return;
+
+      const now = new Date();
+      const reportDate = now.toISOString().split('T')[0];
+      let period = '';
+      
+      if (reportData.type === 'Daily') {
+        period = reportDate;
+      } else if (reportData.type === 'Weekly') {
+        const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
+        const weekEnd = new Date(now.setDate(now.getDate() - now.getDay() + 6));
+        period = `${weekStart.toISOString().split('T')[0]} to ${weekEnd.toISOString().split('T')[0]}`;
+      } else {
+        period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      }
+
+      await sheet.addRow({
+        'Report Type': reportData.type,
+        'Report Date': reportDate,
+        'Period': period,
+        'Total Jobs': reportData.totalJobs,
+        'Total Hires': reportData.totalHires,
+        'Active Companies': reportData.activeCompanies,
+        'Growth Rate %': `${reportData.growthRate.toFixed(1)}%`,
+        'Top Company': reportData.topCompany,
+        'Top Company Jobs': reportData.topCompanyJobs,
+        'Remote Jobs': reportData.remoteJobs,
+        'Most Active Day': reportData.mostActiveDay
+      });
+      
+      console.log(`✅ ${reportData.type} summary report synced to Google Sheets`);
+    } catch (error: any) {
+      console.error('❌ Failed to sync summary report:', error);
     }
   }
 }

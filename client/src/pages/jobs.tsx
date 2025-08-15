@@ -19,7 +19,7 @@ export default function Jobs() {
 
   const { data: jobs, isLoading } = useQuery({
     queryKey: ["/api/jobs"],
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
 
   const filteredJobs = jobs?.filter((job: JobPosting) => {

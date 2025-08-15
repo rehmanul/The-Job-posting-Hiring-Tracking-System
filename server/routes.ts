@@ -1,17 +1,88 @@
 import type { Express } from "express";
+import express from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
 import { storage } from "./storage";
 import { SchedulerService } from "./scheduler";
+import { JobTrackerService } from "./services/jobTracker";
+
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+import type { Request, Response } from "express";
+// Store a singleton JobTrackerService instance for cookie updates
+let jobTrackerService: JobTrackerService | null = null;
+
+
+// Load cookies from file if present
+const cookiesPath = path.join(__dirname, "linkedin_cookies.json");
+let persistedCookies: any[] | null = null;
+try {
+  if (fs.existsSync(cookiesPath)) {
+    const raw = fs.readFileSync(cookiesPath, "utf-8");
+    persistedCookies = JSON.parse(raw);
+    if (Array.isArray(persistedCookies) && persistedCookies.length > 0) {
+      jobTrackerService = new JobTrackerService(persistedCookies);
+      console.log("✅ Loaded LinkedIn session cookies for authenticated scraping");
+    }
+
+  }
+} catch (e) {
+  console.warn("⚠️ Failed to load LinkedIn cookies on startup:", e);
+}
+
 import { insertCompanySchema } from "@shared/schema";
+import { LinkedInOAuth } from "./services/linkedinAuth";
+import { LinkedInWebhookService } from "./services/linkedinWebhook";
 
 let schedulerService: SchedulerService | null = null;
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Initialize scheduler service
+  // LinkedIn webhook - absolute minimal
+  app.get("/api/linkedin/webhook", (req, res) => {
+    console.log('WEBHOOK GET:', req.query);
+    if (req.query.challenge) {
+      res.send(req.query.challenge);
+    } else {
+      res.send('OK');
+    }
+  });
+  
+  app.post("/api/linkedin/webhook", (req, res) => {
+    console.log('WEBHOOK POST:', req.body);
+    res.send('OK');
+  });
+
+  // Initialize scheduler service but don't auto-start
   schedulerService = new SchedulerService();
   await schedulerService.initialize();
-  await schedulerService.start();
+  // Don't auto-start - wait for user to click Start Tracking
+
+  // API endpoint to upload LinkedIn session cookies
+  app.post("/api/linkedin/session-cookies", async (req: Request, res: Response) => {
+    try {
+      const cookies = req.body.cookies;
+      if (!Array.isArray(cookies) || cookies.length === 0) {
+        return res.status(400).json({ error: "No cookies provided" });
+      }
+      // Persist cookies to file
+      fs.writeFileSync(cookiesPath, JSON.stringify(cookies, null, 2), "utf-8");
+      if (!jobTrackerService) {
+        jobTrackerService = new JobTrackerService(cookies);
+      } else {
+
+        jobTrackerService.setLinkedInSessionCookies(cookies);
+      }
+      res.json({ success: true, message: "LinkedIn session cookies updated and persisted" });
+      console.log("✅ LinkedIn session cookies uploaded and persisted for authenticated scraping");
+    } catch (error) {
+      console.error("Error updating LinkedIn session cookies:", error);
+      res.status(500).json({ error: "Failed to update LinkedIn session cookies" });
+    }
+  });
 
   // Dashboard data endpoints
   app.get("/api/dashboard/stats", async (req, res) => {
@@ -28,16 +99,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const todayJobs = jobs.filter(j => j.foundDate && j.foundDate >= today);
       const todayHires = hires.filter(h => h.foundDate && h.foundDate >= today);
 
+      // Calculate actual success rate from recent analytics
+      const recentAnalytics = await storage.getAnalytics(7); // Last 7 days
+      const successRate = recentAnalytics.length > 0 
+        ? recentAnalytics.reduce((sum, a) => {
+            const successful = a.successfulScans || 0;
+            const failed = a.failedScans || 0;
+            const total = successful + failed;
+            return sum + (total > 0 ? (successful / total * 100) : 100);
+          }, 0) / recentAnalytics.length
+        : 100;
+
       const stats = {
         companiesTracked: companies.length,
         newJobsToday: todayJobs.length,
         newHiresToday: todayHires.length,
-        successRate: 96.8, // TODO: Calculate from actual metrics
-        lastScanTime: new Date(Date.now() - 2 * 60 * 1000).toISOString(), // 2 minutes ago
+        successRate: Math.round(successRate * 10) / 10, // Round to 1 decimal
+        lastScanTime: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
       };
 
       res.json(stats);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching dashboard stats:", error);
       res.status(500).json({ error: "Failed to fetch dashboard stats" });
     }
@@ -55,7 +137,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }));
 
       res.json(activities);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching activity:", error);
       res.status(500).json({ error: "Failed to fetch activity" });
     }
@@ -66,7 +148,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const companies = await storage.getCompanies();
       res.json(companies);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching companies:", error);
       res.status(500).json({ error: "Failed to fetch companies" });
     }
@@ -77,7 +159,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertCompanySchema.parse(req.body);
       const company = await storage.createCompany(validatedData);
       res.json(company);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating company:", error);
       if (error instanceof z.ZodError) {
         res.status(400).json({ error: "Invalid company data", details: error.errors });
@@ -98,7 +180,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json(company);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating company:", error);
       res.status(500).json({ error: "Failed to update company" });
     }
@@ -114,7 +196,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json({ success: true });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting company:", error);
       res.status(500).json({ error: "Failed to delete company" });
     }
@@ -126,7 +208,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
       const jobs = await storage.getJobPostings(limit);
       res.json(jobs);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching jobs:", error);
       res.status(500).json({ error: "Failed to fetch jobs" });
     }
@@ -138,7 +220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
       const hires = await storage.getNewHires(limit);
       res.json(hires);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching hires:", error);
       res.status(500).json({ error: "Failed to fetch hires" });
     }
@@ -150,7 +232,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const days = req.query.days ? parseInt(req.query.days as string) : 30;
       const analytics = await storage.getAnalytics(days);
       res.json(analytics);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching analytics:", error);
       res.status(500).json({ error: "Failed to fetch analytics" });
     }
@@ -163,7 +245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hours = req.query.hours ? parseInt(req.query.hours as string) : 24;
       const metrics = await storage.getHealthMetrics(service, hours);
       res.json(metrics);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching health metrics:", error);
       res.status(500).json({ error: "Failed to fetch health metrics" });
     }
@@ -176,7 +258,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await schedulerService.stop();
       }
       res.json({ success: true, message: "System paused" });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error pausing system:", error);
       res.status(500).json({ error: "Failed to pause system" });
     }
@@ -188,17 +270,159 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await schedulerService.start();
       }
       res.json({ success: true, message: "System resumed" });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error resuming system:", error);
       res.status(500).json({ error: "Failed to resume system" });
     }
+  });
+
+  // LinkedIn OAuth endpoints
+  app.get("/api/linkedin/auth", async (req, res) => {
+    try {
+      const { LinkedInAPIService } = await import('./services/linkedinAPI');
+      const linkedinAPI = new LinkedInAPIService();
+      await linkedinAPI.initialize();
+      
+      const authUrl = linkedinAPI.getAuthorizationUrl();
+      res.json({ authUrl });
+    } catch (error: any) {
+      console.error('Error getting LinkedIn auth URL:', error);
+      res.status(500).json({ error: 'Failed to get LinkedIn auth URL' });
+    }
+  });
+
+  app.get("/", async (req, res) => {
+    const { code } = req.query;
+    if (code) {
+      try {
+        const { LinkedInAPIService } = await import('./services/linkedinAPI');
+        const linkedinAPI = new LinkedInAPIService();
+        await linkedinAPI.initialize();
+        
+        const accessToken = await linkedinAPI.exchangeCodeForToken(code as string);
+        if (accessToken) {
+          process.env.LINKEDIN_ACCESS_TOKEN = accessToken;
+          res.send('<script>alert("LinkedIn connected successfully!"); window.close();</script>');
+        } else {
+          res.send('<script>alert("LinkedIn authentication failed!"); window.close();</script>');
+        }
+      } catch (error: any) {
+        console.error('Error handling LinkedIn callback:', error);
+        res.send('<script>alert("LinkedIn authentication error!"); window.close();</script>');
+      }
+    } else {
+      // Serve the main app
+      res.sendFile('index.html', { root: 'dist/public' });
+    }
+  });
+
+  app.get("/api/linkedin/status", async (req, res) => {
+    try {
+      const hasToken = !!process.env.LINKEDIN_ACCESS_TOKEN;
+      const hasCredentials = !!(process.env.LINKEDIN_CLIENT_ID && process.env.LINKEDIN_CLIENT_SECRET);
+      
+      res.json({
+        authenticated: hasToken,
+        configured: hasCredentials,
+        clientId: process.env.LINKEDIN_CLIENT_ID ? process.env.LINKEDIN_CLIENT_ID.substring(0, 8) + '...' : null
+      });
+    } catch (error: any) {
+      console.error('Error getting LinkedIn status:', error);
+      res.status(500).json({ error: 'Failed to get LinkedIn status' });
+    }
+  });
+
+  app.post("/api/system/start-tracking", async (req, res) => {
+    try {
+      if (!schedulerService) {
+        schedulerService = new SchedulerService();
+        await schedulerService.initialize();
+      }
+      
+      const status = schedulerService.getStatus();
+      if (!status.isRunning) {
+        await schedulerService.start();
+      }
+      
+      res.json({ success: true, message: "Tracking started successfully" });
+    } catch (error: any) {
+      console.error("Error starting tracking:", error);
+      res.status(500).json({ error: "Failed to start tracking" });
+    }
+  });
+
+  const linkedinAuth = new LinkedInOAuth();
+  const linkedinWebhook = new LinkedInWebhookService();
+  
+  // LinkedIn webhook endpoint - MUST be before other routes
+  app.all("/api/linkedin/webhook", (req, res) => {
+    // Prevent caching
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+    
+    console.log(`🔍 LinkedIn webhook ${req.method}:`, {
+      query: req.query,
+      url: req.url,
+      timestamp: new Date().toISOString()
+    });
+
+    // Handle challenge validation
+    const challenge = req.query.challenge || req.body?.challenge;
+    if (challenge) {
+      console.log('✅ Challenge validation:', challenge);
+      return res.status(200).type('text/plain').send(String(challenge));
+    }
+
+    // Handle webhook events (POST)
+    if (req.method === 'POST') {
+      console.log('📨 LinkedIn webhook event received');
+      return linkedinWebhook.handleWebhook(req, res);
+    }
+
+    // Default response
+    console.log('ℹ️ Default webhook response');
+    res.status(200).type('text/plain').send('OK');
+  });
+  
+  app.get("/api/linkedin/auth", (req, res) => {
+    res.redirect(linkedinAuth.getAuthorizationUrl());
+  });
+
+  // TEMP: debug runtime paths to help locate persisted verification logs
+  app.get('/internal/debug/cwd', (_req, res) => {
+    try {
+      res.json({ cwd: process.cwd(), dirname: __dirname, pid: process.pid });
+    } catch (e) {
+      res.status(500).json({ error: String(e) });
+    }
+  });
+
+  app.get("/api/linkedin/callback", (req, res) => {
+    linkedinAuth.handleCallback(req, res);
+  });
+
+
+
+
+
+  // Test endpoint for webhook debugging
+  app.get("/api/linkedin/webhook/test", (req, res) => {
+    res.json({
+      status: 'active',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      webhookSecret: process.env.LINKEDIN_WEBHOOK_SECRET ? 'configured' : 'missing'
+    });
   });
 
   app.get("/api/system/status", async (req, res) => {
     try {
       const status = schedulerService ? schedulerService.getStatus() : { isRunning: false };
       res.json(status);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error getting system status:", error);
       res.status(500).json({ error: "Failed to get system status" });
     }
@@ -212,9 +436,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Clear existing companies and reload from Google Sheets
       await storage.clearSampleCompanies();
 
-      // Get the Google Sheets service from job tracker
-      const googleSheetsService = (schedulerService as any).googleSheets; // Assuming googleSheets is a property of SchedulerService
-      await storage.syncCompaniesFromGoogleSheets(googleSheetsService);
+      // Import GoogleSheetsService directly
+      const { GoogleSheetsService } = await import('./services/googleSheets');
+      const googleSheetsService = new GoogleSheetsService();
+      
+      try {
+        await googleSheetsService.initialize();
+        await storage.syncCompaniesFromGoogleSheets(await googleSheetsService.getCompanies());
+      } catch (sheetsError) {
+        console.warn('⚠️ Google Sheets not available, using GoogleSheetsIntegrationService');
+        const { GoogleSheetsIntegrationService } = await import('./services/googleSheetsIntegration');
+        const integrationService = new GoogleSheetsIntegrationService();
+        const companies = await integrationService.loadCompaniesFromSheet();
+        
+        for (const companyData of companies) {
+          await storage.createCompany(companyData);
+        }
+      }
 
       const companies = await storage.getCompanies();
 
@@ -229,13 +467,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }))
       });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Failed to refresh companies:', error);
       res.status(500).json({
         success: false,
         error: 'Failed to refresh companies from Google Sheets',
         details: (error as Error).message
       });
+    }
+  });
+
+  // Settings endpoints
+  app.get('/api/settings', async (req, res) => {
+    try {
+      const settings = {
+        jobCheckInterval: process.env.JOB_POSTING_CHECK_INTERVAL || '60',
+        hireCheckInterval: process.env.NEW_HIRE_CHECK_INTERVAL || '15',
+        analyticsInterval: process.env.TRACKING_INTERVAL_MINUTES || '15',
+        slackEnabled: !!process.env.SLACK_BOT_TOKEN,
+        emailEnabled: !!process.env.GMAIL_USER,
+        maxRetries: process.env.MAX_RETRIES || '3',
+        requestTimeout: process.env.REQUEST_TIMEOUT || '30000',
+        maxConcurrent: process.env.MAX_CONCURRENT_REQUESTS || '5',
+        stealthMode: process.env.USE_STEALTH_MODE === 'true',
+        minDelay: process.env.MIN_DELAY_MS || '2000',
+        maxDelay: process.env.MAX_DELAY_MS || '8000',
+        linkedinEmail: process.env.LINKEDIN_EMAIL || '',
+        slackChannel: process.env.SLACK_CHANNEL || '#job-alerts',
+        emailRecipients: process.env.EMAIL_RECIPIENTS || '',
+        googleSheetsId: process.env.GOOGLE_SHEETS_ID || '',
+      };
+      res.json(settings);
+    } catch (error: any) {
+      console.error('Error fetching settings:', error);
+      res.status(500).json({ error: 'Failed to fetch settings' });
+    }
+  });
+
+  app.put('/api/settings', async (req, res) => {
+    try {
+      const settings = req.body;
+      
+      // Update environment variables (in memory)
+      process.env.JOB_POSTING_CHECK_INTERVAL = settings.jobCheckInterval;
+      process.env.NEW_HIRE_CHECK_INTERVAL = settings.hireCheckInterval;
+      process.env.TRACKING_INTERVAL_MINUTES = settings.analyticsInterval;
+      process.env.MAX_RETRIES = settings.maxRetries;
+      process.env.REQUEST_TIMEOUT = settings.requestTimeout;
+      process.env.MAX_CONCURRENT_REQUESTS = settings.maxConcurrent;
+      process.env.USE_STEALTH_MODE = settings.stealthMode.toString();
+      process.env.MIN_DELAY_MS = settings.minDelay;
+      process.env.MAX_DELAY_MS = settings.maxDelay;
+      process.env.LINKEDIN_EMAIL = settings.linkedinEmail;
+      process.env.SLACK_CHANNEL = settings.slackChannel;
+      process.env.EMAIL_RECIPIENTS = settings.emailRecipients;
+      process.env.GOOGLE_SHEETS_ID = settings.googleSheetsId;
+      
+      console.log('✅ Settings updated successfully');
+      res.json({ success: true, message: 'Settings updated successfully' });
+    } catch (error: any) {
+      console.error('Error updating settings:', error);
+      res.status(500).json({ error: 'Failed to update settings' });
     }
   });
 

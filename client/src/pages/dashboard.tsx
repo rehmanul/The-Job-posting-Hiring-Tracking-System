@@ -13,6 +13,8 @@ import ActivityFeed from "@/components/dashboard/activityFeed";
 import JobsTable from "@/components/dashboard/jobsTable";
 import HiresTable from "@/components/dashboard/hiresTable";
 import LiveConsole from "@/components/dashboard/liveConsole";
+import LinkedInAuthButton from "@/components/dashboard/linkedinAuthButton";
+import StartTrackingButton from "@/components/dashboard/startTrackingButton";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -20,12 +22,12 @@ export default function Dashboard() {
 
   const { data: notifications } = useQuery({
     queryKey: ["/api/dashboard/activity"],
-    refetchInterval: 30000,
+    refetchInterval: 10000, // 10 seconds
   });
 
   const { data: stats } = useQuery({
     queryKey: ["/api/dashboard/stats"],
-    refetchInterval: 30000,
+    refetchInterval: 10000, // 10 seconds
   });
 
   const { data: systemStatus } = useQuery({
@@ -144,6 +146,8 @@ export default function Dashboard() {
               
               {/* Control buttons */}
               <div className="flex items-center space-x-2">
+                <LinkedInAuthButton />
+                <StartTrackingButton />
                 <Button
                   onClick={() => isRunning ? pauseSystemMutation.mutate() : resumeSystemMutation.mutate()}
                   disabled={pauseSystemMutation.isPending || resumeSystemMutation.isPending}

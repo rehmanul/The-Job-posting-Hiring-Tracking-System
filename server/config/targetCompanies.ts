@@ -1,241 +1,231 @@
-import type { Company } from '../../shared/schema';
+/**
+ * Gaming Industry Companies Configuration
+ * Production-ready configuration for iGaming and sports betting companies
+ */
+
+import type { InsertCompany } from '../../shared/schema';
+import { storage } from '../storage';
 
 /**
- * Production configuration for 16+ target companies
+ * Production configuration for 20+ iGaming companies
  * Each company configured for automated job tracking and hire monitoring
  */
-export const TARGET_COMPANIES: Omit<Company, 'id' | 'createdAt' | 'updatedAt'>[] = [
-  // Tech Giants
+export const GAMING_COMPANIES: InsertCompany[] = [
+  // Major iGaming Operators
   {
-    name: 'Google',
-    website: 'https://google.com',
-    careerPageUrl: 'https://careers.google.com/jobs/results/',
-    linkedinUrl: 'https://www.linkedin.com/company/google/',
-    industry: 'Technology',
+    name: 'Evoke plc',
+    website: 'https://www.evokeplc.com',
+    careerPageUrl: 'https://www.evokeplc.com/careers/',
+    linkedinUrl: 'https://www.linkedin.com/company/evoke-plc/',
+    industry: 'iGaming',
     isActive: true,
-    location: 'Mountain View, CA'
+    location: 'London, UK'
   },
   {
-    name: 'Meta',
-    website: 'https://meta.com',
-    careerPageUrl: 'https://www.metacareers.com/jobs/',
-    linkedinUrl: 'https://www.linkedin.com/company/meta/',
-    industry: 'Social Media',
+    name: 'Betsson Group',
+    website: 'https://www.betssongroup.com',
+    careerPageUrl: 'https://www.betssongroup.com/career/available-jobs/',
+    linkedinUrl: 'https://www.linkedin.com/company/betsson-group/',
+    industry: 'iGaming',
     isActive: true,
-    location: 'Menlo Park, CA'
+    location: 'Stockholm, Sweden'
   },
   {
-    name: 'Microsoft',
-    website: 'https://microsoft.com',
-    careerPageUrl: 'https://careers.microsoft.com/us/en/search-results',
-    linkedinUrl: 'https://www.linkedin.com/company/microsoft/',
-    industry: 'Technology',
+    name: 'Super Group (Betway)',
+    website: 'https://supergroup.com',
+    careerPageUrl: 'https://myhcm.wd3.myworkdayjobs.com/Betway',
+    linkedinUrl: 'https://www.linkedin.com/company/betway/',
+    industry: 'iGaming',
     isActive: true,
-    location: 'Redmond, WA'
+    location: 'Guernsey, Channel Islands'
   },
   {
-    name: 'Amazon',
-    website: 'https://amazon.com',
-    careerPageUrl: 'https://www.amazon.jobs/en/search',
-    linkedinUrl: 'https://www.linkedin.com/company/amazon/',
-    industry: 'E-commerce',
+    name: 'Catena Media',
+    website: 'https://www.catenamedia.com',
+    careerPageUrl: 'https://jobs.lever.co/catenamedia',
+    linkedinUrl: 'https://www.linkedin.com/company/catena-media/',
+    industry: 'iGaming',
     isActive: true,
-    location: 'Seattle, WA'
+    location: 'Malta'
   },
   {
-    name: 'Apple',
-    website: 'https://apple.com',
-    careerPageUrl: 'https://jobs.apple.com/en-us/search',
-    linkedinUrl: 'https://www.linkedin.com/company/apple/',
-    industry: 'Consumer Electronics',
+    name: 'Entain',
+    website: 'https://www.entain.com',
+    careerPageUrl: 'https://www.entaincareers.com/en/',
+    linkedinUrl: 'https://www.linkedin.com/company/entain/',
+    industry: 'iGaming',
     isActive: true,
-    location: 'Cupertino, CA'
-  },
-
-  // Financial Services
-  {
-    name: 'JPMorgan Chase',
-    website: 'https://jpmorganchase.com',
-    careerPageUrl: 'https://careers.jpmorgan.com/US/en/search-results',
-    linkedinUrl: 'https://www.linkedin.com/company/jpmorgan-chase/',
-    industry: 'Financial Services',
-    isActive: true,
-    location: 'New York, NY'
+    location: 'London, UK'
   },
   {
-    name: 'Goldman Sachs',
-    website: 'https://goldmansachs.com',
-    careerPageUrl: 'https://www.goldmansachs.com/careers/explore-careers/',
-    linkedinUrl: 'https://www.linkedin.com/company/goldman-sachs/',
-    industry: 'Investment Banking',
+    name: 'Evolution',
+    website: 'https://www.evolution.com',
+    careerPageUrl: 'https://careers.evolution.com',
+    linkedinUrl: 'https://www.linkedin.com/company/evolution-gaming/',
+    industry: 'iGaming',
     isActive: true,
-    location: 'New York, NY'
+    location: 'Stockholm, Sweden'
   },
   {
-    name: 'Morgan Stanley',
-    website: 'https://morganstanley.com',
-    careerPageUrl: 'https://www.morganstanley.com/careers/search-jobs',
-    linkedinUrl: 'https://www.linkedin.com/company/morgan-stanley/',
-    industry: 'Financial Services',
+    name: 'Flutter Entertainment',
+    website: 'https://flutter.com',
+    careerPageUrl: 'https://careers.fluttergroup.com/jobs/',
+    linkedinUrl: 'https://www.linkedin.com/company/flutter-entertainment/',
+    industry: 'iGaming',
     isActive: true,
-    location: 'New York, NY'
-  },
-
-  // Consulting
-  {
-    name: 'McKinsey & Company',
-    website: 'https://mckinsey.com',
-    careerPageUrl: 'https://www.mckinsey.com/careers/search-jobs',
-    linkedinUrl: 'https://www.linkedin.com/company/mckinsey/',
-    industry: 'Management Consulting',
-    isActive: true,
-    location: 'New York, NY'
+    location: 'Dublin, Ireland'
   },
   {
-    name: 'Boston Consulting Group',
-    website: 'https://bcg.com',
-    careerPageUrl: 'https://careers.bcg.com/search',
-    linkedinUrl: 'https://www.linkedin.com/company/boston-consulting-group/',
-    industry: 'Management Consulting',
+    name: 'Gaming Innovation Group (GiG)',
+    website: 'https://www.gig.com',
+    careerPageUrl: 'https://gig.pinpointhq.com/',
+    linkedinUrl: 'https://www.linkedin.com/company/gaming-innovation-group/',
+    industry: 'iGaming',
     isActive: true,
-    location: 'Boston, MA'
+    location: 'Malta'
   },
   {
-    name: 'Bain & Company',
-    website: 'https://bain.com',
-    careerPageUrl: 'https://www.bain.com/careers/find-a-role/',
-    linkedinUrl: 'https://www.linkedin.com/company/bain-and-company/',
-    industry: 'Management Consulting',
+    name: 'Genius Sports',
+    website: 'https://www.geniussports.com',
+    careerPageUrl: 'https://www.geniussports.com/careers/',
+    linkedinUrl: 'https://www.linkedin.com/company/genius-sports/',
+    industry: 'Sports Technology',
     isActive: true,
-    location: 'Boston, MA'
-  },
-
-  // Unicorn Startups
-  {
-    name: 'Stripe',
-    website: 'https://stripe.com',
-    careerPageUrl: 'https://stripe.com/jobs/search',
-    linkedinUrl: 'https://www.linkedin.com/company/stripe/',
-    industry: 'Fintech',
-    isActive: true,
-    location: 'San Francisco, CA'
+    location: 'London, UK'
   },
   {
-    name: 'SpaceX',
-    website: 'https://spacex.com',
-    careerPageUrl: 'https://www.spacex.com/careers/',
-    linkedinUrl: 'https://www.linkedin.com/company/spacex/',
-    industry: 'Aerospace',
+    name: 'FDJ United',
+    website: 'https://www.fdjunited.com',
+    careerPageUrl: 'https://www.fdjunited.com/careers/',
+    linkedinUrl: 'https://www.linkedin.com/company/fdj-united/',
+    industry: 'iGaming',
     isActive: true,
-    location: 'Hawthorne, CA'
+    location: 'Malta'
   },
   {
-    name: 'Airbnb',
-    website: 'https://airbnb.com',
-    careerPageUrl: 'https://careers.airbnb.com/',
-    linkedinUrl: 'https://www.linkedin.com/company/airbnb/',
-    industry: 'Travel',
+    name: 'LeoVegas',
+    website: 'https://www.leovegasgroup.com',
+    careerPageUrl: 'https://www.leovegasgroup.com/careers/',
+    linkedinUrl: 'https://www.linkedin.com/company/leovegas/',
+    industry: 'iGaming',
     isActive: true,
-    location: 'San Francisco, CA'
+    location: 'Stockholm, Sweden'
   },
   {
-    name: 'Uber',
-    website: 'https://uber.com',
-    careerPageUrl: 'https://www.uber.com/us/en/careers/list/',
-    linkedinUrl: 'https://www.linkedin.com/company/uber-com/',
-    industry: 'Transportation',
+    name: 'NetEnt',
+    website: 'https://www.netent.com',
+    careerPageUrl: 'https://www.netent.com/en/open-positions/',
+    linkedinUrl: 'https://www.linkedin.com/company/netent/',
+    industry: 'iGaming',
     isActive: true,
-    location: 'San Francisco, CA'
+    location: 'Stockholm, Sweden'
   },
   {
-    name: 'Netflix',
-    website: 'https://netflix.com',
-    careerPageUrl: 'https://jobs.netflix.com/search',
-    linkedinUrl: 'https://www.linkedin.com/company/netflix/',
-    industry: 'Entertainment',
+    name: 'Playtech',
+    website: 'https://www.playtech.com',
+    careerPageUrl: 'https://www.playtechpeople.com/',
+    linkedinUrl: 'https://www.linkedin.com/company/playtech/',
+    industry: 'iGaming',
     isActive: true,
-    location: 'Los Gatos, CA'
-  },
-
-  // Additional High-Growth Companies
-  {
-    name: 'Palantir',
-    website: 'https://palantir.com',
-    careerPageUrl: 'https://www.palantir.com/careers/',
-    linkedinUrl: 'https://www.linkedin.com/company/palantir-technologies/',
-    industry: 'Data Analytics',
-    isActive: true,
-    location: 'Denver, CO'
+    location: 'Tallinn, Estonia'
   },
   {
-    name: 'Databricks',
-    website: 'https://databricks.com',
-    careerPageUrl: 'https://www.databricks.com/company/careers/open-positions',
-    linkedinUrl: 'https://www.linkedin.com/company/databricks/',
-    industry: 'Data & AI',
+    name: 'The Workshop',
+    website: 'https://theworkshop.com',
+    careerPageUrl: 'https://careers.theworkshop.com/',
+    linkedinUrl: 'https://www.linkedin.com/company/the-workshop/',
+    industry: 'iGaming',
     isActive: true,
-    location: 'San Francisco, CA'
+    location: 'Malaga, Spain'
   },
   {
-    name: 'Snowflake',
-    website: 'https://snowflake.com',
-    careerPageUrl: 'https://careers.snowflake.com/us/en/search-results',
-    linkedinUrl: 'https://www.linkedin.com/company/snowflake-computing/',
-    industry: 'Cloud Computing',
+    name: 'William Hill',
+    website: 'https://www.williamhillgroup.com',
+    careerPageUrl: 'https://www.williamhillgroup.com/careers',
+    linkedinUrl: 'https://www.linkedin.com/company/william-hill/',
+    industry: 'iGaming',
     isActive: true,
-    location: 'Bozeman, MT'
+    location: 'London, UK'
+  },
+  {
+    name: 'Yolo Group',
+    website: 'https://yolo.group',
+    careerPageUrl: 'https://yolo.com/jobs',
+    linkedinUrl: 'https://www.linkedin.com/company/yolo-group/',
+    industry: 'iGaming',
+    isActive: true,
+    location: 'Tallinn, Estonia'
+  },
+  {
+    name: 'bet365',
+    website: 'https://www.bet365.com',
+    careerPageUrl: 'https://www.bet365careers.com/en/all-jobs',
+    linkedinUrl: 'https://www.linkedin.com/company/bet365/',
+    industry: 'iGaming',
+    isActive: true,
+    location: 'Stoke-on-Trent, UK'
+  },
+  {
+    name: 'Better Collective',
+    website: 'https://bettercollective.com',
+    careerPageUrl: 'https://bettercollective.com/careers/',
+    linkedinUrl: 'https://www.linkedin.com/company/better-collective/',
+    industry: 'iGaming',
+    isActive: true,
+    location: 'Copenhagen, Denmark'
   }
 ];
 
+let isInitialized = false;
+
 /**
- * Initialize target companies in the database
- * This ensures all production companies are tracked from day one
+ * Initialize gaming companies in the database
+ * This ensures all iGaming companies are tracked from day one
  */
-export async function initializeTargetCompanies(): Promise<void> {
-  const { storage } = await import('../storage');
+export async function initializeGamingCompanies(): Promise<void> {
+  if (isInitialized) {
+    return;
+  }
   
-  console.log('🏢 Initializing target companies for production tracking...');
+  // Check if companies already exist in database
+  const existingCompanies = await storage.getCompanies();
+  if (existingCompanies.length >= 18) {
+    isInitialized = true;
+    return;
+  }
+  
+  console.log('🎰 Initializing gaming companies for production tracking...');
   
   let companiesAdded = 0;
   let companiesUpdated = 0;
   
-  for (const companyData of TARGET_COMPANIES) {
+  // Get all existing companies once
+  const allExistingCompanies = await storage.getCompanies();
+  
+  for (const companyData of GAMING_COMPANIES) {
     try {
-      // Check if company already exists
-      const existingCompanies = await storage.getCompanies();
-      const existingCompany = existingCompanies.find(c => 
+      const existingCompany = allExistingCompanies.find(c => 
         c.name.toLowerCase() === companyData.name.toLowerCase()
       );
       
       if (existingCompany) {
-        // Update existing company with latest configuration
-        await storage.updateCompany(existingCompany.id, {
-          ...companyData,
-          updatedAt: new Date()
-        });
         companiesUpdated++;
-        console.log(`✅ Updated company: ${companyData.name}`);
+        // Skip update to avoid spam
       } else {
-        // Create new company
-        await storage.createCompany({
-          ...companyData,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        });
+        await storage.createCompany(companyData);
         companiesAdded++;
         console.log(`🆕 Added new company: ${companyData.name}`);
       }
-      
-      // Small delay to avoid overwhelming the database
-      await new Promise(resolve => setTimeout(resolve, 100));
       
     } catch (error) {
       console.error(`❌ Failed to initialize company ${companyData.name}:`, error);
     }
   }
   
-  console.log(`✅ Company initialization complete:`);
+  console.log(`✅ Gaming companies initialization complete:`);
   console.log(`   📈 ${companiesAdded} companies added`);
   console.log(`   🔄 ${companiesUpdated} companies updated`);
-  console.log(`   🎯 ${TARGET_COMPANIES.length} total companies configured for tracking`);
+  console.log(`   🎯 ${GAMING_COMPANIES.length} total gaming companies configured for tracking`);
+  
+  isInitialized = true;
 }

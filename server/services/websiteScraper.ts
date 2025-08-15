@@ -118,58 +118,95 @@ export class WebsiteScraper {
     }
 
     try {
-      const config = this.generateScrapingConfig(company);
-      console.log(`🔍 Scraping jobs from ${company.name} website: ${company.careerPageUrl}`);
+      console.log(`🔍 Scraping jobs from ${company.name}: ${company.careerPageUrl}`);
+      
+      // Navigate with shorter timeout
+      await this.page.goto(company.careerPageUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: 15000
+      });
 
-      const jobs: InsertJobPosting[] = [];
-      let currentPage = 1;
-      const maxPages = config.pagination?.maxPages || 5;
+      // Wait for content to load
+      await this.delay(3000, 5000);
+      
+      // Scroll to load dynamic content
+      await this.page.evaluate(() => {
+        window.scrollTo(0, document.body.scrollHeight);
+      });
+      await this.delay(2000, 3000);
 
-      do {
-        console.log(`📄 Scraping page ${currentPage} for ${company.name}`);
-
-        await this.page.goto(company.careerPageUrl, {
-          waitUntil: 'networkidle2',
-          timeout: 30000
-        });
-
-        // Wait for specific conditions if defined
-        if (config.waitConditions) {
-          for (const condition of config.waitConditions) {
-            await this.page.waitForSelector(condition.selector, { 
-              timeout: condition.timeout 
-            }).catch(() => {
-              console.warn(`⚠️ Wait condition not met: ${condition.selector}`);
+      // Extract job links using comprehensive selectors
+      const jobs = await this.page.evaluate((companyName) => {
+        const jobKeywords = [
+          'engineer', 'developer', 'manager', 'analyst', 'specialist',
+          'coordinator', 'director', 'lead', 'senior', 'junior',
+          'architect', 'consultant', 'designer', 'scientist'
+        ];
+        
+        const skipKeywords = [
+          'apply', 'view all', 'home', 'about', 'contact', 'privacy',
+          'terms', 'cookie', 'back to', 'return to'
+        ];
+        
+        const links = Array.from(document.querySelectorAll('a'));
+        const jobLinks: any[] = [];
+        
+        links.forEach(link => {
+          const text = link.textContent?.trim() || '';
+          const href = link.href || '';
+          
+          if (text.length >= 10 && text.length <= 150 &&
+              jobKeywords.some(kw => text.toLowerCase().includes(kw)) &&
+              !skipKeywords.some(skip => text.toLowerCase().includes(skip))) {
+            
+            jobLinks.push({
+              title: text,
+              url: href,
+              location: 'Remote',
+              department: 'General'
             });
           }
-        }
+        });
+        
+        // Also check other elements for job titles
+        const elements = Array.from(document.querySelectorAll('h1, h2, h3, h4, div, span'));
+        elements.forEach(elem => {
+          const text = elem.textContent?.trim() || '';
+          
+          if (text.length >= 10 && text.length <= 100 &&
+              jobKeywords.some(kw => text.toLowerCase().includes(kw)) &&
+              !skipKeywords.some(skip => text.toLowerCase().includes(skip)) &&
+              jobLinks.length < 25) {
+            
+            const parentLink = elem.closest('a');
+            const href = parentLink?.href || window.location.href;
+            
+            jobLinks.push({
+              title: text,
+              url: href,
+              location: 'Remote',
+              department: 'General'
+            });
+          }
+        });
+        
+        return jobLinks.slice(0, 25); // Limit to 25 jobs
+      }, company.name);
 
-        // Wait for job listings to load
-        await this.page.waitForSelector(config.selectors.jobContainer, { timeout: 10000 })
-          .catch(() => {
-            console.warn(`⚠️ Job container not found: ${config.selectors.jobContainer}`);
-          });
+      // Convert to InsertJobPosting format
+      const jobPostings: InsertJobPosting[] = jobs.map(job => ({
+        company: company.name,
+        jobTitle: job.title,
+        location: job.location,
+        department: job.department,
+        postedDate: new Date(),
+        url: job.url,
+        confidenceScore: '90',
+        source: 'career_page'
+      }));
 
-        // Extract jobs from current page
-        const pageJobs = await this.extractJobsFromPage(company, config);
-        jobs.push(...pageJobs);
-
-        console.log(`✅ Found ${pageJobs.length} jobs on page ${currentPage}`);
-
-        // Check if we should continue to next page
-        if (config.pagination && currentPage < maxPages) {
-          const hasNextPage = await this.goToNextPage(config.pagination.nextButton);
-          if (!hasNextPage) break;
-          currentPage++;
-          await this.delay(2000, 5000); // Delay between pages
-        } else {
-          break;
-        }
-
-      } while (currentPage <= maxPages);
-
-      console.log(`✅ Total jobs found for ${company.name}: ${jobs.length}`);
-      return jobs;
+      console.log(`✅ Found ${jobPostings.length} jobs for ${company.name}`);
+      return jobPostings;
 
     } catch (error) {
       console.error(`❌ Failed to scrape website for ${company.name}:`, error);
@@ -177,122 +214,11 @@ export class WebsiteScraper {
     }
   }
 
-  private generateScrapingConfig(company: Company): WebsiteScrapingConfig {
-    // Dynamic scraping configuration based on company domain
-    const domain = this.extractDomain(company.careerPageUrl || company.website || '');
-    
-    // Common selectors that work across many career sites
-    const commonSelectors = {
-      jobContainer: [
-        '[data-testid*="job"]',
-        '.job-listing',
-        '.job-item',
-        '.position',
-        '.career-opening',
-        '.job-card',
-        '.job-post',
-        '.vacancy',
-        'article[data-job]',
-        '.job'
-      ],
-      title: [
-        'h1', 'h2', 'h3',
-        '[data-testid*="title"]',
-        '.job-title',
-        '.position-title',
-        '.title',
-        'a[href*="job"]'
-      ],
-      location: [
-        '[data-testid*="location"]',
-        '.location',
-        '.job-location',
-        '.office',
-        '.city'
-      ],
-      department: [
-        '[data-testid*="department"]',
-        '.department',
-        '.team',
-        '.category'
-      ]
-    };
-
-    // Domain-specific configurations for popular job platforms
-    const domainConfigs: Record<string, Partial<WebsiteScrapingConfig>> = {
-      'greenhouse.io': {
-        selectors: {
-          jobContainer: '.opening',
-          title: 'a',
-          location: '.location',
-          department: '.department'
-        }
-      },
-      'lever.co': {
-        selectors: {
-          jobContainer: '.posting',
-          title: 'h5 a',
-          location: '.sort-by-location .posting-category',
-          department: '.sort-by-team .posting-category'
-        }
-      },
-      'workday.com': {
-        selectors: {
-          jobContainer: '[data-automation-id="jobPostingItem"]',
-          title: '[data-automation-id="jobPostingTitle"]',
-          location: '[data-automation-id="jobPostingLocation"]'
-        }
-      },
-      'bamboohr.com': {
-        selectors: {
-          jobContainer: '.BambooHR-ATS-Jobs-Item',
-          title: '.BambooHR-ATS-Jobs-Item-Title a',
-          location: '.BambooHR-ATS-Jobs-Item-Location'
-        }
-      },
-      'smartrecruiters.com': {
-        selectors: {
-          jobContainer: '.opening-job',
-          title: '.job-title a',
-          location: '.job-location',
-          department: '.job-department'
-        }
-      }
-    };
-
-    // Check if we have a specific configuration for this domain
-    const specificConfig = domainConfigs[domain];
-    
-    if (specificConfig) {
-      return {
-        company,
-        ...specificConfig,
-        selectors: {
-          jobContainer: specificConfig.selectors?.jobContainer || commonSelectors.jobContainer[0],
-          title: specificConfig.selectors?.title || commonSelectors.title[0],
-          location: specificConfig.selectors?.location,
-          department: specificConfig.selectors?.department,
-        }
-      };
-    }
-
-    // Fallback to common selectors
-    return {
-      company,
-      selectors: {
-        jobContainer: commonSelectors.jobContainer[0],
-        title: commonSelectors.title[0],
-        location: commonSelectors.location[0],
-        department: commonSelectors.department[0]
-      },
-      pagination: {
-        nextButton: 'button[aria-label*="next"], .next, .pagination-next, [data-testid*="next"]',
-        maxPages: 3
-      },
-      waitConditions: [
-        { selector: 'body', timeout: 10000 }
-      ]
-    };
+  private async extractJobsFromLinkedInAPI(companyId: string): Promise<InsertJobPosting[]> {
+    // Placeholder for LinkedIn API integration
+    // This would use LinkedIn's official API endpoints
+    console.log(`🔗 LinkedIn API integration needed for company: ${companyId}`);
+    return [];
   }
 
   private async extractJobsFromPage(company: Company, config: WebsiteScrapingConfig): Promise<InsertJobPosting[]> {

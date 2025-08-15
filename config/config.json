@@ -1,0 +1,18 @@
+{
+  "googleSheetId": "1yrPK6x7vCdodnkMWxHyuWI0vv7H-1xVbg7qMmYkNGXY",
+  "slackWebhookUrl": "YOUR_SLACK_WEBHOOK_URL",
+  "smtp": {
+    "host": "smtp.gmail.com",
+    "port": 587,
+    "secure": false,
+    "auth": {
+      "user": "YOUR_GMAIL_ADDRESS",
+      "pass": "YOUR_GMAIL_PASSWORD"
+    }
+  },
+  "linkedIn": {
+    "username": "YOUR_LINKEDIN_USERNAME",
+    "password": "YOUR_LINKEDIN_PASSWORD"
+  },
+  "scrapingInterval": "0 * * * *"
+}

@@ -4,13 +4,13 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Building2, User, ExternalLink } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import type { NewHire } from "@shared/schema";
 
 export default function HiresTable() {
   const { data: hires, isLoading } = useQuery({
     queryKey: ["/api/hires"],
-    queryParams: { limit: 5 },
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
 
   const getInitials = (name: string) => {
@@ -76,8 +76,8 @@ export default function HiresTable() {
           <CardTitle className="text-lg font-semibold text-gray-900">Latest New Hires</CardTitle>
           <div className="flex items-center space-x-2">
             <span className="text-sm text-gray-500">Showing {Math.min(hires?.length || 0, 5)} of {hires?.length || 0}</span>
-            <Button variant="ghost" size="sm" className="text-primary hover:text-blue-700">
-              View All
+            <Button variant="ghost" size="sm" className="text-primary hover:text-blue-700" asChild>
+              <Link href="/hires">View All</Link>
             </Button>
           </div>
         </div>

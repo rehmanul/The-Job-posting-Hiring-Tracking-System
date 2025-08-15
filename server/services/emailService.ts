@@ -5,6 +5,8 @@ export class EmailService {
   private transporter: nodemailer.Transporter | null = null;
   private recipients: string[] = [];
   private isEnabled = false;
+  private lastEmailSent = 0;
+  private emailCooldown = 60000; // 1 minute cooldown between emails
 
   constructor() {
     const gmailUser = process.env.GMAIL_USER;
@@ -21,7 +23,7 @@ export class EmailService {
       return;
     }
 
-    this.transporter = nodemailer.createTransporter({
+    this.transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
         user: gmailUser,
@@ -36,7 +38,15 @@ export class EmailService {
   async sendJobAlert(job: JobPosting): Promise<void> {
     if (!this.isEnabled || !this.transporter) return;
     
+    // Rate limiting to prevent Gmail authentication issues
+    const now = Date.now();
+    if (now - this.lastEmailSent < this.emailCooldown) {
+      console.log('⏳ Email cooldown active, skipping job alert');
+      return;
+    }
+    
     try {
+      this.lastEmailSent = now;
       const subject = `🆕 New Job Alert: ${job.jobTitle} at ${job.company}`;
       
       const html = `
@@ -81,16 +91,28 @@ export class EmailService {
 
       console.log('✅ Job alert email sent');
       
-    } catch (error) {
-      console.error('❌ Failed to send job alert email:', error);
-      throw error;
+    } catch (error: any) {
+      console.error('❌ Failed to send job alert email:', error.message);
+      // Don't throw error to prevent stopping the job scan
+      if (error.code === 'EAUTH') {
+        console.warn('⚠️ Gmail authentication failed - disabling email notifications temporarily');
+        this.isEnabled = false;
+      }
     }
   }
 
   async sendHireAlert(hire: NewHire): Promise<void> {
     if (!this.isEnabled || !this.transporter) return;
     
+    // Rate limiting to prevent Gmail authentication issues
+    const now = Date.now();
+    if (now - this.lastEmailSent < this.emailCooldown) {
+      console.log('⏳ Email cooldown active, skipping hire alert');
+      return;
+    }
+    
     try {
+      this.lastEmailSent = now;
       const subject = `👋 New Hire Alert: ${hire.personName} at ${hire.company}`;
       
       const html = `
@@ -134,9 +156,13 @@ export class EmailService {
 
       console.log('✅ Hire alert email sent');
       
-    } catch (error) {
-      console.error('❌ Failed to send hire alert email:', error);
-      throw error;
+    } catch (error: any) {
+      console.error('❌ Failed to send hire alert email:', error.message);
+      // Don't throw error to prevent stopping the hire scan
+      if (error.code === 'EAUTH') {
+        console.warn('⚠️ Gmail authentication failed - disabling email notifications temporarily');
+        this.isEnabled = false;
+      }
     }
   }
 

@@ -7,43 +7,53 @@ export class GeminiService {
   private isInitialized = false;
 
   async initialize(): Promise<void> {
-    try {
-      console.log('🤖 Initializing Gemini AI Service...');
+    console.log('🤖 Initializing Gemini AI Service...');
 
-      if (!process.env.GEMINI_API_KEY) {
-        console.warn('⚠️ Gemini AI Service disabled - GEMINI_API_KEY not found');
-        this.isEnabled = false;
-        this.isInitialized = true;
-        return;
-      }
-
-      this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-      // Test API connection
-      await this.testConnection();
-
-      this.isEnabled = true;
-      this.isInitialized = true;
-
-      console.log('✅ Gemini AI Service initialized successfully');
-
-    } catch (error) {
-      console.error('❌ Failed to initialize Gemini AI Service:', error);
+    if (!process.env.GEMINI_API_KEY) {
+      console.warn('⚠️ Gemini AI Service disabled - GEMINI_API_KEY not found');
       this.isEnabled = false;
       this.isInitialized = true;
+      return;
+    }
+
+    this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+    // Test API connection
+    this.isEnabled = await this.testConnection();
+    this.isInitialized = true;
+
+    if (this.isEnabled) {
+      console.log('✅ Gemini AI Service initialized successfully');
+    } else {
+      console.warn('⚠️ Gemini AI Service could not connect. Continuing in disabled state.');
     }
   }
 
-  private async testConnection(): Promise<void> {
-    if (!this.genAI) throw new Error('Gemini client not initialized');
+  private async testConnection(): Promise<boolean> {
+    if (!this.genAI) return false;
 
-    try {
-      const model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
-      await model.generateContent("test");
-    } catch (error) {
-      throw new Error(`Gemini API test failed: ${(error as Error).message}`);
+    const maxRetries = 3;
+    let attempt = 0;
+
+    while (attempt < maxRetries) {
+      try {
+        const model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-thinking-exp" });
+        await model.generateContent("test");
+        return true; // Success
+      } catch (error: any) {
+        attempt++;
+        console.warn(`⚠️ Gemini API test attempt ${attempt} of ${maxRetries} failed: ${error.message}`);
+        if (attempt >= maxRetries) {
+          console.error(`❌ Gemini API test failed after ${maxRetries} attempts.`);
+          return false;
+        }
+        // Wait 1s, 2s before retrying
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
     }
+    return false;
   }
+
 
   async classifyJob(jobTitle: string, jobDescription: string): Promise<{
     department: string;
@@ -57,7 +67,7 @@ export class GeminiService {
     }
 
     try {
-      const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
+      const model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-thinking-exp" });
 
       const prompt = `Analyze this job posting and classify it:
 
@@ -115,7 +125,7 @@ Example: {"department": "Engineering", "seniority": "Senior", "skills": ["React"
     }
 
     try {
-      const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
+      const model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-thinking-exp" });
 
       const prompt = `Analyze this new hire information and classify:
 
@@ -303,7 +313,7 @@ Return JSON with:
     if (!this.genAI) return 0;
 
     try {
-      const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
+      const model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-thinking-exp" });
 
       const prompt = `Compare these two job postings and rate their similarity from 0.0 to 1.0:
 
@@ -333,11 +343,12 @@ Return only a number between 0.0 and 1.0 representing similarity.`;
   }
 
   async analyzeContent(content: string): Promise<{ summary: string; topics: string[] }> {
-    if (!this.isInitialized || !this.model) {
+    if (!this.isInitialized || !this.genAI) {
       return { summary: 'Analysis unavailable', topics: [] };
     }
 
     try {
+      const model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-thinking-exp" });
       const prompt = `Analyze this job posting content and provide:
       1. A brief summary (2-3 sentences)
       2. Key topics/skills mentioned (as array)
@@ -346,72 +357,19 @@ Return only a number between 0.0 and 1.0 representing similarity.`;
 
       Respond in JSON format: {"summary": "...", "topics": [...]}`;
 
-      const result = await this.model.generateContent(prompt);
-      const response = result.response.text();
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const responseText = response.text();
+
 
       try {
-        return JSON.parse(response);
+        return JSON.parse(responseText);
       } catch {
         return { summary: 'Analysis completed', topics: [] };
       }
     } catch (error) {
       console.error('❌ Gemini analysis failed:', error);
       return { summary: 'Analysis failed', topics: [] };
-    }
-  }
-
-  async classifyJob(jobTitle: string, jobUrl: string): Promise<{ department: string | null; confidence: number }> {
-    if (!this.isInitialized || !this.model) {
-      return { department: null, confidence: 0.7 };
-    }
-
-    try {
-      const prompt = `Classify this job title into a department category:
-      Job Title: ${jobTitle}
-
-      Common departments: Engineering, Product, Design, Marketing, Sales, Operations, HR, Finance, Legal, Customer Success, Data Science
-
-      Respond in JSON format: {"department": "...", "confidence": 0.95}`;
-
-      const result = await this.model.generateContent(prompt);
-      const response = result.response.text();
-
-      try {
-        return JSON.parse(response);
-      } catch {
-        return { department: 'Engineering', confidence: 0.7 };
-      }
-    } catch (error) {
-      console.error('❌ Job classification failed:', error);
-      return { department: null, confidence: 0.7 };
-    }
-  }
-
-  async classifyHire(personName: string, position: string): Promise<{ position: string | null; confidence: number }> {
-    if (!this.isInitialized || !this.model) {
-      return { position, confidence: 0.7 };
-    }
-
-    try {
-      const prompt = `Standardize this job position title:
-      Person: ${personName}
-      Position: ${position}
-
-      Provide a standardized position title.
-
-      Respond in JSON format: {"position": "...", "confidence": 0.95}`;
-
-      const result = await this.model.generateContent(prompt);
-      const response = result.response.text();
-
-      try {
-        return JSON.parse(response);
-      } catch {
-        return { position, confidence: 0.7 };
-      }
-    } catch (error) {
-      console.error('❌ Hire classification failed:', error);
-      return { position, confidence: 0.7 };
     }
   }
 }

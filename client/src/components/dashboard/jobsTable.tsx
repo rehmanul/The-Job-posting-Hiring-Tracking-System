@@ -3,13 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Building2, MapPin, ExternalLink } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import type { JobPosting } from "@shared/schema";
 
 export default function JobsTable() {
   const { data: jobs, isLoading } = useQuery({
     queryKey: ["/api/jobs"],
-    queryParams: { limit: 5 },
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
 
   const getCompanyInitial = (company: string) => {
@@ -69,8 +69,8 @@ export default function JobsTable() {
           <CardTitle className="text-lg font-semibold text-gray-900">Latest Job Postings</CardTitle>
           <div className="flex items-center space-x-2">
             <span className="text-sm text-gray-500">Showing {Math.min(jobs?.length || 0, 5)} of {jobs?.length || 0}</span>
-            <Button variant="ghost" size="sm" className="text-primary hover:text-blue-700">
-              View All
+            <Button variant="ghost" size="sm" className="text-primary hover:text-blue-700" asChild>
+              <Link href="/jobs">View All</Link>
             </Button>
           </div>
         </div>

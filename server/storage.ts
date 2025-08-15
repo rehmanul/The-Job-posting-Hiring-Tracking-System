@@ -4,7 +4,8 @@ import {
   type NewHire, type InsertNewHire,
   type Analytics, type InsertAnalytics,
   type HealthMetric, type InsertHealthMetric,
-  type SystemLog, type InsertSystemLog
+  type SystemLog, type InsertSystemLog,
+  type LinkedInToken, type InsertLinkedInToken
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -47,6 +48,10 @@ export interface IStorage {
   // System Logs
   getSystemLogs(service?: string, level?: string, limit?: number): Promise<SystemLog[]>;
   createSystemLog(log: InsertSystemLog): Promise<SystemLog>;
+
+  // LinkedIn Tokens
+  storeLinkedInToken(token: InsertLinkedInToken): Promise<LinkedInToken>;
+  getActiveLinkedInToken(): Promise<LinkedInToken | null>;
 }
 
 export class MemStorage implements IStorage {
@@ -56,6 +61,7 @@ export class MemStorage implements IStorage {
   private analytics: Map<string, Analytics> = new Map();
   private healthMetrics: Map<string, HealthMetric> = new Map();
   private systemLogs: Map<string, SystemLog> = new Map();
+  private linkedinTokens: Map<string, LinkedInToken> = new Map();
 
   constructor() {
     // Production storage - no sample data
@@ -108,26 +114,25 @@ export class MemStorage implements IStorage {
     console.log('✅ Cleared all sample companies');
   }
 
-  async syncCompaniesFromGoogleSheets(googleSheetsService: any): Promise<void> {
+  async syncCompaniesFromGoogleSheets(companiesData: any[]): Promise<void> {
     try {
-      if (!googleSheetsService || !googleSheetsService.getCompaniesData) {
-        console.warn('⚠️ Google Sheets service not available for company sync');
+      if (!companiesData || companiesData.length === 0) {
+        console.warn('⚠️ No companies data provided for sync');
         return;
       }
 
-      const companiesData = await googleSheetsService.getCompaniesData();
-
       for (const companyData of companiesData) {
         await this.createCompany({
-          name: companyData.name || companyData['Company Name'],
-          website: companyData.website || companyData['Website'],
-          linkedinUrl: companyData.linkedinUrl || companyData['LinkedIn URL'],
-          isActive: companyData.isActive !== false && companyData['Is Active'] !== false,
+          name: companyData.name || '',
+          website: companyData.website || '',
+          linkedinUrl: companyData.linkedinUrl || '',
+          careerPageUrl: companyData.careerPageUrl || '',
+          isActive: companyData.isActive !== false,
         });
       }
 
       console.log(`✅ Synced ${companiesData.length} companies from Google Sheets`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Failed to sync companies from Google Sheets:', error);
     }
   }
@@ -144,6 +149,19 @@ export class MemStorage implements IStorage {
   }
 
   async createJobPosting(insertJob: InsertJobPosting): Promise<JobPosting> {
+    // Check for duplicates before creating
+    const existingJobs = Array.from(this.jobPostings.values());
+    const isDuplicate = existingJobs.some(existing => 
+      existing.jobTitle.toLowerCase() === insertJob.jobTitle.toLowerCase() &&
+      existing.company.toLowerCase() === insertJob.company.toLowerCase() &&
+      (existing.location?.toLowerCase() || '') === (insertJob.location?.toLowerCase() || '')
+    );
+    
+    if (isDuplicate) {
+      console.log(`🚫 Blocked duplicate job: ${insertJob.jobTitle} at ${insertJob.company}`);
+      throw new Error('Duplicate job detected');
+    }
+    
     const id = randomUUID();
     const job: JobPosting = { 
       id,
@@ -160,6 +178,7 @@ export class MemStorage implements IStorage {
       notificationSent: false,
     };
     this.jobPostings.set(id, job);
+    console.log(`✅ Created new job: ${job.jobTitle} at ${job.company}`);
     return job;
   }
 
@@ -197,6 +216,19 @@ export class MemStorage implements IStorage {
   }
 
   async createNewHire(insertHire: InsertNewHire): Promise<NewHire> {
+    // Check for duplicates before creating
+    const existingHires = Array.from(this.newHires.values());
+    const isDuplicate = existingHires.some(existing => 
+      existing.personName.toLowerCase() === insertHire.personName.toLowerCase() &&
+      existing.company.toLowerCase() === insertHire.company.toLowerCase() &&
+      existing.position.toLowerCase() === insertHire.position.toLowerCase()
+    );
+    
+    if (isDuplicate) {
+      console.log(`🚫 Blocked duplicate hire: ${insertHire.personName} at ${insertHire.company}`);
+      throw new Error('Duplicate hire detected');
+    }
+    
     const id = randomUUID();
     const hire: NewHire = { 
       id,
@@ -212,6 +244,7 @@ export class MemStorage implements IStorage {
       notificationSent: false,
     };
     this.newHires.set(id, hire);
+    console.log(`✅ Created new hire: ${hire.personName} as ${hire.position} at ${hire.company}`);
     return hire;
   }
 
@@ -334,6 +367,37 @@ export class MemStorage implements IStorage {
     };
     this.systemLogs.set(id, log);
     return log;
+  }
+
+  // LinkedIn Tokens
+  async storeLinkedInToken(insertToken: InsertLinkedInToken): Promise<LinkedInToken> {
+    // Deactivate existing tokens
+    for (const [id, token] of this.linkedinTokens.entries()) {
+      this.linkedinTokens.set(id, { ...token, isActive: false });
+    }
+    
+    // Create new token
+    const id = randomUUID();
+    const token: LinkedInToken = {
+      id,
+      accessToken: insertToken.accessToken,
+      refreshToken: insertToken.refreshToken ?? null,
+      expiresAt: insertToken.expiresAt ?? null,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.linkedinTokens.set(id, token);
+    return token;
+  }
+
+  async getActiveLinkedInToken(): Promise<LinkedInToken | null> {
+    for (const token of this.linkedinTokens.values()) {
+      if (token.isActive) {
+        return token;
+      }
+    }
+    return null;
   }
 }
 

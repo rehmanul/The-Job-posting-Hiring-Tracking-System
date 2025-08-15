@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: jobtracker-expert
+    plan: free
+    branch: main
+  runtime: node
+    buildCommand: "npm install && npm run build"
+    startCommand: "npm start"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LINKEDIN_CLIENT_ID
+        value: ""
+      - key: LINKEDIN_CLIENT_SECRET
+        value: ""
+      - key: LINKEDIN_WEBHOOK_SECRET
+        value: ""
+      - key: SERVER_PORT
+        value: "3000"

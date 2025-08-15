@@ -7,54 +7,69 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Save, Settings as SettingsIcon, Bell, Database, Link, Mail } from "lucide-react";
-import { useState } from "react";
+import LinkedInCookieUploader from "@/components/settings/LinkedInCookieUploader";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function Settings() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
-  // Mock settings state - in a real app, this would come from the backend
   const [settings, setSettings] = useState({
-    // Scheduling
-    jobCheckInterval: "15",
-    hireCheckInterval: "60",
-    analyticsInterval: "30",
-    
-    // Notifications
+    jobCheckInterval: "60",
+    hireCheckInterval: "15", 
+    analyticsInterval: "15",
     slackEnabled: true,
     emailEnabled: true,
-    
-    // System
     maxRetries: "3",
     requestTimeout: "30000",
     maxConcurrent: "5",
-    
-    // Anti-detection
     stealthMode: true,
     minDelay: "2000",
     maxDelay: "8000",
-    
-    // Environment
     linkedinEmail: "dglink3tr@gmail.com",
     slackChannel: "#job-alerts",
     emailRecipients: "rehman.shoj@gmail.com,matt@boostkit.io",
     googleSheetsId: "1yrPK6x7vCdodnkMWxHyuWI0vv7H-1xVbg7qMmYkNGXY",
   });
 
-  const [isSaving, setIsSaving] = useState(false);
+  // Load settings from API
+  const { data: currentSettings } = useQuery({
+    queryKey: ["/api/settings"],
+    retry: false,
+  });
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    toast({
-      title: "Settings Saved",
-      description: "Your configuration has been updated successfully.",
-    });
-    
-    setIsSaving(false);
+  // Update local state when API data loads
+  useEffect(() => {
+    if (currentSettings) {
+      setSettings(prev => ({ ...prev, ...currentSettings }));
+    }
+  }, [currentSettings]);
+
+  // Save settings mutation
+  const saveSettingsMutation = useMutation({
+    mutationFn: (newSettings: typeof settings) => 
+      apiRequest("PUT", "/api/settings", newSettings),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      toast({
+        title: "Settings Saved",
+        description: "Your configuration has been updated successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to save settings. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSave = () => {
+    saveSettingsMutation.mutate(settings);
   };
 
   const handleInputChange = (key: string, value: string | boolean) => {
@@ -73,9 +88,9 @@ export default function Settings() {
               <SettingsIcon className="h-6 w-6 text-gray-600" />
               <h2 className="text-2xl font-semibold text-gray-900">Settings</h2>
             </div>
-            <Button onClick={handleSave} disabled={isSaving} className="bg-primary hover:bg-blue-600 text-white">
+            <Button onClick={handleSave} disabled={saveSettingsMutation.isPending} className="bg-primary hover:bg-blue-600 text-white">
               <Save className="mr-2 h-4 w-4" />
-              {isSaving ? "Saving..." : "Save Changes"}
+              {saveSettingsMutation.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </div>
         </header>
@@ -295,6 +310,11 @@ export default function Settings() {
                     className="mt-1"
                     placeholder="Google Sheets document ID"
                   />
+                </div>
+
+                {/* LinkedIn Cookie Uploader */}
+                <div className="mt-6">
+                  <LinkedInCookieUploader />
                 </div>
 
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">

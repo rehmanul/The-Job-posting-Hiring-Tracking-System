@@ -15,7 +15,7 @@ export default function Hires() {
 
   const { data: hires, isLoading } = useQuery({
     queryKey: ["/api/hires"],
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
 
   const filteredHires = hires?.filter((hire: NewHire) => {

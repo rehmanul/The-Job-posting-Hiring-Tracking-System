@@ -8,9 +8,13 @@ import {
   Heart, 
   Settings, 
   Search,
-  Clock
+  Clock,
+  Moon,
+  Sun
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useTheme } from "next-themes";
+import { Button } from "@/components/ui/button";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
@@ -24,6 +28,7 @@ const navigation = [
 
 export default function Sidebar() {
   const [location] = useLocation();
+  const { theme, setTheme } = useTheme();
 
   const { data: stats } = useQuery({
     queryKey: ["/api/dashboard/stats"],
@@ -47,14 +52,28 @@ export default function Sidebar() {
     <aside className="w-64 bg-white shadow-lg fixed h-full z-10 border-r border-gray-200">
       {/* Header */}
       <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-            <Search className="text-white text-lg" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+              <Search className="text-white text-lg" />
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold text-gray-900">Job Tracker</h1>
+              <p className="text-sm text-gray-500">System v1.0.0</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900">Job Tracker</h1>
-            <p className="text-sm text-gray-500">System v1.0.0</p>
-          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="p-2"
+          >
+            {theme === "dark" ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
+          </Button>
         </div>
       </div>
 

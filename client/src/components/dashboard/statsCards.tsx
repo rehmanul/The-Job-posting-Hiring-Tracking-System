@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 export default function StatsCards() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ["/api/dashboard/stats"],
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 10000, // Refresh every 10 seconds
   });
 
   const cards = [
