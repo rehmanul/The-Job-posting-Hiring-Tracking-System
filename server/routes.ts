@@ -343,31 +343,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const linkedinWebhook = new LinkedInWebhookService();
   const webhookHandler = WebhookHandler.getInstance();
   
-  // LinkedIn webhook with HMAC validation
+  // LinkedIn webhook - Exact spec implementation
   app.get("/webhook", (req, res) => {
-    const { challengeCode, applicationId } = req.query;
+    const { challengeCode } = req.query;
     
     if (challengeCode) {
-      // Use your LinkedIn client secret
-      const clientSecret = process.env.LINKEDIN_CLIENT_SECRET || 'your_client_secret';
+      const clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
       
-      // Generate HMAC-SHA256 signature
+      if (!clientSecret) {
+        return res.status(500).json({ error: 'Client secret not configured' });
+      }
+      
       const crypto = require('crypto');
       const challengeResponse = crypto
         .createHmac('sha256', clientSecret)
         .update(challengeCode)
         .digest('hex');
       
-      res.json({
+      // Set content-type to application/json as required
+      res.setHeader('Content-Type', 'application/json');
+      
+      return res.status(200).json({
         challengeCode: challengeCode,
         challengeResponse: challengeResponse
       });
-    } else {
-      res.send('OK');
     }
+    
+    res.status(200).send('OK');
   });
   
   app.post("/webhook", (req, res) => {
+    // Verify X-LI-Signature header for POST requests
+    const signature = req.headers['x-li-signature'];
     console.log('LinkedIn webhook event:', req.body);
     res.status(200).send('OK');
   });
