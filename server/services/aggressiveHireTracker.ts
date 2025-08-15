@@ -40,7 +40,10 @@ export class AggressiveHireTracker {
   }
 
   async trackCompanyHires(companyName: string, linkedinUrl?: string): Promise<InsertNewHire[]> {
-    console.log(`🎯 AGGRESSIVE tracking for ${companyName} using Puppeteer`);
+    const logMessage = `🎯 AGGRESSIVE tracking for ${companyName} using Puppeteer`;
+    console.log(logMessage);
+    await this.logToDatabase('info', 'aggressive_tracker', logMessage);
+    
     const allHires: InsertNewHire[] = [];
 
     const sources = [
@@ -85,10 +88,27 @@ export class AggressiveHireTracker {
     if (uniqueHires.length < allHires.length) {
       console.info(`ℹ️ Deduplicated ${allHires.length - uniqueHires.length} duplicate hires for ${companyName}`);
     }
-  console.log(`✅ Total unique hires found for ${companyName}: ${uniqueHires.length}`);
+  const finalMessage = `✅ Total unique hires found for ${companyName}: ${uniqueHires.length}`;
+  console.log(finalMessage);
+  await this.logToDatabase('info', 'aggressive_tracker', finalMessage);
+  
   // Informational runtime summary about guarantees/limits
   console.info(`ℹ️ Scan summary for ${companyName}: extracted ${allHires.length} candidates, ${uniqueHires.length} unique after deduplication. Note: the tracker attempts to find hires across multiple public sources using pattern matching; it cannot guarantee it will find every hire mentioned in external sources due to content variations, paywalls, or rate limits.`);
     return uniqueHires;
+  }
+  
+  private async logToDatabase(level: string, service: string, message: string): Promise<void> {
+    try {
+      const { storage } = await import('../storage');
+      await storage.createSystemLog({
+        level,
+        service,
+        message,
+        metadata: { timestamp: new Date().toISOString() }
+      });
+    } catch (error) {
+      // Ignore database logging errors
+    }
   }
 
   private async scrapeCompanyWebsite(companyName: string): Promise<InsertNewHire[]> {
@@ -112,7 +132,10 @@ export class AggressiveHireTracker {
   
   private async getLinkedInAPIHires(companyName: string, linkedinUrl: string): Promise<InsertNewHire[]> {
     try {
-      console.log(`🔗 Attempting LinkedIn API for ${companyName}`);
+      const apiLogMessage = `🔗 Attempting LinkedIn API for ${companyName}`;
+      console.log(apiLogMessage);
+      await this.logToDatabase('info', 'linkedin_api', apiLogMessage);
+      
       console.log(`🔗 LinkedIn URL: ${linkedinUrl}`);
       console.log(`🔗 Access Token: ${process.env.LINKEDIN_ACCESS_TOKEN ? 'Present' : 'Missing'}`);
       
@@ -141,7 +164,9 @@ export class AggressiveHireTracker {
           
           const hires = this.extractHiresFromAPIResponse(data, companyName);
           if (hires.length > 0) {
-            console.log(`✅ LinkedIn API found ${hires.length} hires for ${companyName}`);
+            const successMessage = `✅ LinkedIn API found ${hires.length} hires for ${companyName}`;
+            console.log(successMessage);
+            await this.logToDatabase('info', 'linkedin_api', successMessage);
             return hires;
           }
         } else {
