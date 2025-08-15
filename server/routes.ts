@@ -2,6 +2,7 @@ import type { Express } from "express";
 import express from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
+import crypto from "crypto";
 import { storage } from "./storage";
 import { SchedulerService } from "./scheduler";
 import { JobTrackerService } from "./services/jobTracker";
@@ -354,7 +355,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ error: 'Client secret not configured' });
       }
       
-      const crypto = require('crypto');
       const challengeResponse = crypto
         .createHmac('sha256', clientSecret)
         .update(challengeCode)
