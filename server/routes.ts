@@ -343,20 +343,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const linkedinWebhook = new LinkedInWebhookService();
   const webhookHandler = WebhookHandler.getInstance();
   
-  // LinkedIn webhook - Ultra simple for validation
-  app.get("/api/linkedin/webhook", (req, res) => {
+  // LinkedIn webhook - Multiple paths for testing
+  const handleLinkedInWebhook = (req, res) => {
     const challenge = req.query.challenge;
     if (challenge) {
-      res.status(200).send(challenge);
-    } else {
-      res.status(200).send('OK');
+      return res.status(200).type('text/plain').send(String(challenge));
     }
-  });
+    if (req.method === 'POST') {
+      console.log('LinkedIn webhook event:', req.body);
+    }
+    res.status(200).type('text/plain').send('OK');
+  };
   
-  app.post("/api/linkedin/webhook", (req, res) => {
-    console.log('LinkedIn webhook event:', req.body);
-    res.status(200).send('OK');
-  });
+  // Multiple webhook paths
+  app.all("/api/linkedin/webhook", handleLinkedInWebhook);
+  app.all("/webhook/linkedin", handleLinkedInWebhook);
+  app.all("/linkedin-webhook", handleLinkedInWebhook);
   
   app.get("/api/linkedin/auth", (req, res) => {
     res.redirect(linkedinAuth.getAuthorizationUrl());
