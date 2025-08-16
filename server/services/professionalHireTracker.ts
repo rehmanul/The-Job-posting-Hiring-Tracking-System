@@ -139,8 +139,8 @@ export class ProfessionalHireTracker {
     
     // Advanced LinkedIn hire patterns
     const patterns = [
-      // Executive announcements
-      /(?:pleased|excited|thrilled|proud)\s+to\s+(?:announce|welcome)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]*)*\s+[A-Z][a-z]+)\s+(?:as\s+(?:our\s+new\s+)?(CEO|CTO|CFO|COO|VP|Vice\s+President|President|Director|Head\s+of\s+[\w\s]+|Chief\s+[\w\s]+Officer))/i,
+      // Executive announcements - fixed to extract just the name
+      /(?:pleased|excited|thrilled|proud)\s+to\s+(?:announce|welcome)\s+(?:that\s+)?([A-Z][a-z]+\s+[A-Z][a-z]+)\s+(?:has\s+joined|as\s+(?:our\s+new\s+)?(CEO|CTO|CFO|COO|VP|Vice\s+President|President|Director|Head\s+of\s+[\w\s]+|Chief\s+[\w\s]+Officer))/i,
       
       // Team joins
       /(?:welcome|introducing)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]*)*\s+[A-Z][a-z]+)\s+(?:to\s+(?:our\s+)?team|who\s+(?:has\s+)?joined\s+us)\s+as\s+(?:our\s+new\s+)?([\w\s]+)/i,
@@ -163,11 +163,13 @@ export class ProfessionalHireTracker {
             personName,
             company: company.name,
             position,
-            source: 'linkedin_search',
+            startDate: this.extractStartDate(text),
+            previousCompany: this.extractPreviousCompany(text, personName),
+            linkedinProfile: this.extractLinkedInProfile(item.link, text),
+            source: 'LinkedIn Announcement',
             confidenceScore: this.calculateConfidenceScore(text, personName, position),
             foundDate: new Date(),
-            linkedinProfile: item.link,
-            verified: false
+            verified: this.isHighConfidence(text)
           };
         }
       }
@@ -326,6 +328,75 @@ export class ProfessionalHireTracker {
 
   private async delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  private extractStartDate(text: string): Date | null {
+    const datePatterns = [
+      /(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i,
+      /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})/i,
+      /starting\s+(\w+\s+\d{4})/i,
+      /effective\s+(\w+\s+\d{4})/i
+    ];
+
+    for (const pattern of datePatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        try {
+          return new Date(match[0]);
+        } catch {
+          continue;
+        }
+      }
+    }
+    return new Date(); // Default to current date
+  }
+
+  private extractPreviousCompany(text: string, personName: string): string | null {
+    const patterns = [
+      new RegExp(`${personName}.*?(?:from|previously\s+at|formerly\s+at|joins\s+from)\s+([A-Z][\w\s&]+?)(?:\s+as|\s+to|\.|,|$)`, 'i'),
+      /(?:from|previously\s+at|formerly\s+at)\s+([A-Z][\w\s&]+?)(?:\s+as|\s+to|\.|,)/i,
+      /(?:after|following)\s+(?:\d+\s+years?\s+at\s+)?([A-Z][\w\s&]+)/i
+    ];
+
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        const company = match[1].trim();
+        if (company.length > 2 && company.length < 50) {
+          return company;
+        }
+      }
+    }
+    return null;
+  }
+
+  private extractLinkedInProfile(link: string, text: string): string | null {
+    // If the link is already a LinkedIn profile, return it
+    if (link.includes('linkedin.com/in/')) {
+      return link;
+    }
+    
+    // Try to extract LinkedIn profile from text
+    const profileMatch = text.match(/linkedin\.com\/in\/([\w-]+)/i);
+    if (profileMatch) {
+      return `https://linkedin.com/in/${profileMatch[1]}`;
+    }
+    
+    return null;
+  }
+
+  private isHighConfidence(text: string): boolean {
+    const highConfidenceIndicators = [
+      'pleased to announce',
+      'excited to welcome',
+      'thrilled to announce',
+      'official announcement',
+      'press release'
+    ];
+    
+    return highConfidenceIndicators.some(indicator => 
+      text.toLowerCase().includes(indicator)
+    );
   }
 
   private async logToDatabase(level: string, service: string, message: string): Promise<void> {
