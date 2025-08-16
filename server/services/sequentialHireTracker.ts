@@ -90,7 +90,7 @@ export class SequentialHireTracker {
         const text = post.specificContent?.['com.linkedin.ugc.ShareContent']?.shareCommentary?.text || '';
         const postDate = post.lastModified ? new Date(post.lastModified.time) : new Date();
         
-        if (text && postDate >= new Date('2024-08-01')) {
+        if (text && postDate >= new Date('2025-08-01')) {
           const hire = this.extractHireFromLinkedInPost(text, company);
           if (hire) hires.push(hire);
         }
@@ -113,7 +113,7 @@ export class SequentialHireTracker {
       for (const webhookEntry of recentWebhookData) {
         if (webhookEntry.type === 'hire_announcement') {
           const entryDate = webhookEntry.createdAt ? new Date(webhookEntry.createdAt) : new Date();
-          if (entryDate >= new Date('2024-08-01')) {
+          if (entryDate >= new Date('2025-08-01')) {
             const hire = this.extractHireFromWebhook(webhookEntry, company);
             if (hire) hires.push(hire);
           }
@@ -132,7 +132,7 @@ export class SequentialHireTracker {
     if (!this.customSearchKey || !this.customSearchEngineId) return [];
 
     try {
-      const query = `"${company.name}" "pleased to announce" OR "excited to welcome" "joined" site:linkedin.com/posts after:2024-08-01`;
+      const query = `"${company.name}" "pleased to announce" OR "excited to welcome" "joined" site:linkedin.com/posts after:2025-08-01`;
       const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${this.customSearchKey}&cx=${this.customSearchEngineId}&q=${encodeURIComponent(query)}&num=5`;
       
       const response = await fetch(searchUrl);
@@ -166,7 +166,7 @@ export class SequentialHireTracker {
         const personName = match[1].trim();
         if (this.validateHireName(personName)) {
           const startDate = this.extractStartDate(text) || new Date();
-          if (startDate >= new Date('2024-08-01')) {
+          if (startDate >= new Date('2025-08-01')) {
             return {
               personName,
               company: company.name,
@@ -189,7 +189,7 @@ export class SequentialHireTracker {
   private extractHireFromWebhook(webhookEntry: any, company: Company): InsertNewHire | null {
     try {
       const startDate = webhookEntry.startDate ? new Date(webhookEntry.startDate) : new Date();
-      if (startDate >= new Date('2024-08-01')) {
+      if (startDate >= new Date('2025-08-01')) {
         return {
           personName: webhookEntry.personName,
           company: company.name,
@@ -220,7 +220,7 @@ export class SequentialHireTracker {
         const personName = match[1].trim();
         if (this.validateHireName(personName)) {
           const startDate = this.extractStartDate(text) || new Date();
-          if (startDate >= new Date('2024-08-01')) {
+          if (startDate >= new Date('2025-08-01')) {
             return {
               personName,
               company: company.name,

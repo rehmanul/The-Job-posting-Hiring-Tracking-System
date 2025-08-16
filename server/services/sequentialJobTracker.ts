@@ -99,7 +99,7 @@ export class SequentialJobTracker {
       return jobs
         .filter((job: any) => {
           const postedDate = job.listedAt ? new Date(job.listedAt) : new Date();
-          return postedDate >= new Date('2024-08-14');
+          return postedDate >= new Date('2025-08-14');
         })
         .map((job: any) => ({
           jobTitle: job.title || 'Untitled Position',
@@ -130,7 +130,7 @@ export class SequentialJobTracker {
       for (const webhookEntry of recentWebhookData) {
         if (webhookEntry.type === 'job_posting') {
           const postedDate = webhookEntry.postedDate ? new Date(webhookEntry.postedDate) : new Date();
-          if (postedDate >= new Date('2024-08-14')) {
+          if (postedDate >= new Date('2025-08-14'));
             jobs.push({
               jobTitle: webhookEntry.jobTitle,
               company: company.name,
@@ -177,7 +177,7 @@ export class SequentialJobTracker {
       
       return jobs.filter(job => {
         const postedDate = job.postedDate || new Date();
-        return postedDate >= new Date('2024-08-14');
+        return postedDate >= new Date('2025-08-14');
       });
     } catch (error) {
       console.error(`Career page scraping error for ${company.name}:`, error);
@@ -200,7 +200,7 @@ export class SequentialJobTracker {
       if (data.items) {
         for (const item of data.items) {
           const job = this.extractJobFromSearchResult(item, company);
-          if (job && job.postedDate >= new Date('2024-08-14')) {
+          if (job && job.postedDate >= new Date('2025-08-14')) {
             jobs.push(job);
           }
         }
