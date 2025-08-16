@@ -248,35 +248,39 @@ export class SequentialJobTracker {
   private extractProfessionalJobsFromHTML(html: string, company: Company): InsertJobPosting[] {
     const jobs: InsertJobPosting[] = [];
     
-    // PROFESSIONAL JOB EXTRACTION PATTERNS
-    const professionalPatterns = [
-      // Job titles in headers with professional keywords
-      /<h[1-6][^>]*>\s*([^<]*(?:Engineer|Developer|Manager|Director|Lead|Senior|Principal|Analyst|Specialist|Coordinator|Designer|Architect|Consultant|Executive|Officer)[^<]*?)\s*<\/h[1-6]>/gi,
+    // STRICT CAREER PAGE JOB EXTRACTION - Only real job postings
+    const careerPagePatterns = [
+      // Job posting links with specific job titles
+      /<a[^>]*href="[^"]*(?:\/job|\/position|\/career|\/apply)[^"]*"[^>]*>\s*([^<]*(?:Engineer|Developer|Manager|Director|Lead|Senior|Principal|Analyst|Specialist|Designer|Architect)[^<]*?)\s*<\/a>/gi,
       
-      // Job links with titles
-      /<a[^>]*href="[^"]*(?:job|career|position)[^"]*"[^>]*>\s*([^<]{10,80})\s*<\/a>/gi,
+      // Job cards with job-specific classes
+      /<div[^>]*class="[^"]*(?:job-card|job-item|position-card|role-item)[^"]*"[^>]*>[\s\S]*?<[^>]*class="[^"]*(?:job-title|position-title|role-title)[^"]*"[^>]*>\s*([^<]{8,80})\s*<\/[^>]*>/gi,
       
-      // Job cards/containers
-      /<div[^>]*class="[^"]*(?:job|position|role|career)[^"]*"[^>]*>[^<]*<[^>]*>\s*([^<]{10,80})\s*<\/[^>]*>/gi,
+      // Table rows with job data
+      /<tr[^>]*>[\s\S]*?<td[^>]*>\s*([^<]*(?:Engineer|Developer|Manager|Director|Lead|Senior|Principal)[^<]*?)\s*<\/td>/gi,
       
-      // List items with job titles
-      /<li[^>]*>[^<]*<[^>]*>\s*([^<]*(?:Engineer|Developer|Manager|Director|Lead|Senior|Principal)[^<]*?)\s*<\/[^>]*>/gi,
-      
-      // Span/div with job title classes
-      /<(?:span|div)[^>]*class="[^"]*(?:title|name|position)[^"]*"[^>]*>\s*([^<]{10,80})\s*<\/(?:span|div)>/gi
+      // Specific job title headers in career sections
+      /<h[2-4][^>]*>\s*([^<]*(?:Software|Senior|Lead|Principal|Frontend|Backend|Full Stack|Data|Product|Engineering|Technical)[^<]*?(?:Engineer|Developer|Manager|Analyst|Designer|Architect)[^<]*?)\s*<\/h[2-4]>/gi
     ];
     
-    for (const pattern of professionalPatterns) {
+    console.log(`🔍 Extracting jobs from ${html.length} chars of HTML for ${company.name}`);
+    
+    for (const pattern of careerPagePatterns) {
       let match;
+      let patternMatches = 0;
+      
       while ((match = pattern.exec(html)) !== null) {
+        patternMatches++;
         const rawTitle = match[1].trim();
         const cleanTitle = this.cleanJobTitle(rawTitle);
+        
+        console.log(`🎯 Found potential job: "${cleanTitle}"`);
         
         if (this.isValidJobTitle(cleanTitle)) {
           const location = this.extractLocationFromContext(html, match.index) || 'Remote/Hybrid';
           const jobType = this.extractJobTypeFromContext(html, match.index) || 'Full-time';
           
-          jobs.push({
+          const job = {
             jobTitle: cleanTitle,
             company: company.name,
             location: location,
@@ -288,12 +292,20 @@ export class SequentialJobTracker {
             applicationUrl: company.careerPageUrl || company.website || '',
             source: 'Professional Career Page',
             foundDate: new Date()
-          });
+          };
+          
+          jobs.push(job);
+          console.log(`✅ Added quality job: "${cleanTitle}"`);
         }
       }
+      
+      console.log(`📊 Pattern found ${patternMatches} matches`);
     }
     
-    return this.deduplicateJobs(jobs);
+    const uniqueJobs = this.deduplicateJobs(jobs);
+    console.log(`🎯 Final result: ${uniqueJobs.length} unique quality jobs`);
+    
+    return uniqueJobs;
   }
   
   private cleanJobTitle(title: string): string {
@@ -301,35 +313,63 @@ export class SequentialJobTracker {
       .replace(/[\n\r\t]/g, ' ')
       .replace(/\s+/g, ' ')
       .replace(/^[^a-zA-Z]*/, '')
-      .replace(/[^a-zA-Z]*$/, '')
+      .replace(/[^a-zA-Z\s]*$/, '')
+      .replace(/\s*[-|•].*$/, '') // Remove everything after dash or bullet
+      .replace(/\s*\(.*\)\s*/, ' ') // Remove parentheses content
       .trim();
   }
   
   private isValidJobTitle(title: string): boolean {
-    if (!title || title.length < 5 || title.length > 100) return false;
+    if (!title || title.length < 8 || title.length > 100) return false;
     
-    // Must contain professional keywords
-    const professionalKeywords = [
-      'engineer', 'developer', 'manager', 'director', 'lead', 'senior', 'principal',
-      'analyst', 'specialist', 'coordinator', 'designer', 'architect', 'consultant',
-      'executive', 'officer', 'head', 'chief', 'vice president', 'vp'
-    ];
+    const lowerTitle = title.toLowerCase();
     
-    const hasKeyword = professionalKeywords.some(keyword => 
-      title.toLowerCase().includes(keyword)
-    );
-    
-    // Reject generic/invalid titles
-    const invalidTitles = [
+    // STRICT REJECTION - Block all garbage titles
+    const strictRejects = [
       'working', 'job', 'position', 'role', 'career', 'opportunity', 'opening',
-      'apply', 'click', 'here', 'more', 'view', 'see', 'all', 'jobs'
+      'apply', 'click', 'here', 'more', 'view', 'see', 'all', 'jobs', 'reviews',
+      'pros and cons', 'employment', 'hiring', 'careers', 'about', 'company',
+      'overview', 'description', 'benefits', 'culture', 'team', 'join', 'work',
+      'life', 'balance', 'salary', 'compensation', 'perks', 'office', 'location'
     ];
     
-    const isInvalid = invalidTitles.some(invalid => 
-      title.toLowerCase() === invalid || title.toLowerCase().includes(invalid)
+    // Reject if title contains any garbage terms
+    if (strictRejects.some(reject => lowerTitle.includes(reject))) {
+      return false;
+    }
+    
+    // Must contain SPECIFIC professional job titles
+    const validJobTitles = [
+      'software engineer', 'senior engineer', 'lead engineer', 'principal engineer',
+      'frontend developer', 'backend developer', 'full stack developer', 'web developer',
+      'data scientist', 'data analyst', 'data engineer', 'machine learning engineer',
+      'product manager', 'project manager', 'program manager', 'engineering manager',
+      'technical lead', 'team lead', 'tech lead', 'architect', 'senior architect',
+      'devops engineer', 'site reliability engineer', 'security engineer',
+      'qa engineer', 'test engineer', 'automation engineer', 'mobile developer',
+      'ios developer', 'android developer', 'ui/ux designer', 'product designer',
+      'marketing manager', 'sales manager', 'account manager', 'business analyst',
+      'financial analyst', 'operations manager', 'hr manager', 'recruiter',
+      'director', 'senior director', 'vp', 'vice president', 'cto', 'ceo', 'cfo'
+    ];
+    
+    // Must match at least one valid job title pattern
+    return validJobTitles.some(validTitle => 
+      lowerTitle.includes(validTitle) || 
+      this.fuzzyMatch(lowerTitle, validTitle)
+    );
+  }
+  
+  private fuzzyMatch(title: string, pattern: string): boolean {
+    const titleWords = title.split(' ');
+    const patternWords = pattern.split(' ');
+    
+    // Check if most pattern words are in title
+    const matches = patternWords.filter(word => 
+      titleWords.some(titleWord => titleWord.includes(word) || word.includes(titleWord))
     );
     
-    return hasKeyword && !isInvalid;
+    return matches.length >= Math.ceil(patternWords.length * 0.7);
   }
   
   private extractLocationFromContext(html: string, index: number): string | null {
@@ -379,11 +419,31 @@ export class SequentialJobTracker {
   }
   
   private validateJobQuality(job: InsertJobPosting): boolean {
-    // Quality validation
-    if (!job.jobTitle || job.jobTitle.length < 5) return false;
-    if (job.jobTitle.toLowerCase().includes('working')) return false;
-    if (job.jobTitle.toLowerCase().includes('click')) return false;
+    // STRICT quality validation
+    if (!job.jobTitle || job.jobTitle.length < 8) return false;
     
+    const lowerTitle = job.jobTitle.toLowerCase();
+    
+    // Block ALL garbage patterns
+    const garbagePatterns = [
+      'working', 'click', 'reviews', 'pros and cons', 'employment',
+      'jobs & careers', 'careers', 'about', 'company', 'overview',
+      'description', 'benefits', 'culture', 'team', 'join us',
+      'why work', 'life at', 'work at', 'hiring', 'recruitment'
+    ];
+    
+    if (garbagePatterns.some(pattern => lowerTitle.includes(pattern))) {
+      console.log(`❌ Rejected garbage title: "${job.jobTitle}"`);
+      return false;
+    }
+    
+    // Must be a real job title
+    if (!this.isValidJobTitle(job.jobTitle)) {
+      console.log(`❌ Rejected invalid job title: "${job.jobTitle}"`);
+      return false;
+    }
+    
+    console.log(`✅ Accepted quality job: "${job.jobTitle}"`);
     return true;
   }
 
