@@ -277,9 +277,9 @@ export class LinkedInAPIService {
     // The new flow uses detectCompanyHires with a companyId.
     // Falling back to Gemini to avoid errors.
     console.log(`⚠️ Calling searchForHireAnnouncements without a company ID. Using Gemini AI fallback for ${companyName}.`);
-    const { GoogleSearchService } = await import('./googleSearchService');
-    const googleSearchService = new GoogleSearchService();
-    return await googleSearchService.searchForHires(companyName);
+    // GoogleSearchService moved to backup - return empty array
+    console.log(`⚠️ GoogleSearchService not available for ${companyName}`);
+    return [];
   }
 
 

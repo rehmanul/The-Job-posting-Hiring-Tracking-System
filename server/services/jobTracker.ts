@@ -1,47 +1,34 @@
 import { storage } from '../storage';
 import { GoogleSheetsService } from './googleSheets';
 import { GoogleSheetsIntegrationService } from './googleSheetsIntegration';
-import { LinkedInScraper } from './linkedinScraper';
 import { LinkedInAPIService } from './linkedinAPI';
-import { WebsiteScraper } from './websiteScraper';
-// REMOVED: All broken services replaced with aggressive tracker
 import { SlackService } from './slackService';
 import { EmailService } from './emailService';
 import { initializeGamingCompanies } from '../config/targetCompanies';
 import type { Company, InsertJobPosting, InsertNewHire } from '@shared/schema';
-import { GoogleSearchService } from './googleSearchService';
 
 export class JobTrackerService {
   protected googleSheets: GoogleSheetsService;
   private googleSheetsIntegration: GoogleSheetsIntegrationService;
-  protected linkedinScraper: LinkedInScraper;
   protected linkedinAPI: LinkedInAPIService;
-  private websiteScraper: WebsiteScraper;
-  // REMOVED: All broken services
   protected slackService: SlackService;
   protected emailService: EmailService;
   protected isRunning = false;
 
   private linkedinSessionCookies: any[] | null | undefined = null;
-  private googleSearchService: GoogleSearchService;
 
   constructor(linkedinSessionCookies?: any[] | null) {
     this.googleSheets = new GoogleSheetsService();
     this.googleSheetsIntegration = new GoogleSheetsIntegrationService();
     this.linkedinSessionCookies = linkedinSessionCookies;
-    this.linkedinScraper = new LinkedInScraper(this.linkedinSessionCookies ?? undefined);
     this.linkedinAPI = new LinkedInAPIService();
-    this.websiteScraper = new WebsiteScraper();
-    // REMOVED: All broken services
     this.slackService = new SlackService();
     this.emailService = new EmailService();
-    this.googleSearchService = new GoogleSearchService();
   }
 
   // Placeholder: Set LinkedIn session cookies (call this after OAuth login or via API)
   setLinkedInSessionCookies(cookies: any[]) {
     this.linkedinSessionCookies = cookies;
-    this.linkedinScraper = new LinkedInScraper(this.linkedinSessionCookies ?? undefined);
   }
 
   async initialize(): Promise<void> {
@@ -49,10 +36,7 @@ export class JobTrackerService {
       console.log('🚀 Initializing Job Tracker Service...');
       
       await this.googleSheets.initialize();
-      await this.linkedinScraper.initialize();
       await this.linkedinAPI.initialize();
-      await this.websiteScraper.initialize();
-      // REMOVED: Broken service initialization
       
       // Load companies from Google Sheets and sync to storage
       console.log('🏢 Loading companies from Google Sheets...');
@@ -399,9 +383,7 @@ export class JobTrackerService {
   
   // REMOVED: LinkedIn token method - using direct scraping now
 
-  protected async searchGoogleForHires(companyName: string): Promise<InsertNewHire[]> {
-    return await this.googleSearchService.searchForHires(companyName);
-  }
+
 
   private async scrapeCompanyJobs(company: Company): Promise<InsertJobPosting[]> {
     const jobs: InsertJobPosting[] = [];
@@ -582,10 +564,7 @@ export class JobTrackerService {
 
   async cleanup(): Promise<void> {
     try {
-      await this.linkedinScraper.cleanup();
       await this.linkedinAPI.cleanup();
-      await this.websiteScraper.cleanup();
-      // REMOVED: Broken service cleanup
       console.log('🧹 Job Tracker Service cleanup complete');
     } catch (error) {
       console.error('❌ Error during cleanup:', error);
