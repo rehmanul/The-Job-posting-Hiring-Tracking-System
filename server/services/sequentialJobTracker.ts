@@ -93,7 +93,7 @@ export class SequentialJobTracker {
       for (const webhookEntry of recentWebhookData) {
         if (webhookEntry.type === 'job_posting') {
           const postedDate = webhookEntry.postedDate ? new Date(webhookEntry.postedDate) : new Date();
-          if (postedDate >= new Date('2025-08-14'));
+          if (postedDate >= new Date('2025-08-14')) {
             jobs.push({
               jobTitle: webhookEntry.jobTitle,
               company: company.name,
