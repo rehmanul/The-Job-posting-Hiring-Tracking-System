@@ -15,62 +15,25 @@ export class SequentialJobTracker {
   }
 
   async trackCompanyJobs(company: Company): Promise<InsertJobPosting[]> {
-    const logMessage = `🔍 Sequential job tracking for ${company.name}`;
+    const logMessage = `🎯 PROFESSIONAL job tracking for ${company.name}`;
     console.log(logMessage);
     await this.logToDatabase('info', 'sequential_job_tracker', logMessage);
 
-    let jobs: InsertJobPosting[] = [];
-
-    // STEP 1: LinkedIn Official API
+    // ONLY CAREER PAGE SCRAPING - HIGHEST QUALITY
     try {
-      console.log(`🔗 Step 1: LinkedIn Official API for ${company.name}`);
-      const linkedinJobs = await this.getLinkedInAPIJobs(company);
-      jobs.push(...linkedinJobs);
-      console.log(`✅ LinkedIn API found ${linkedinJobs.length} jobs`);
+      console.log(`🏢 Professional career page extraction for ${company.name}`);
+      const careerJobs = await this.getProfessionalCareerPageJobs(company);
+      console.log(`✅ Found ${careerJobs.length} QUALITY jobs for ${company.name}`);
+      
+      const resultMessage = `✅ Professional tracking found ${careerJobs.length} quality jobs for ${company.name}`;
+      console.log(resultMessage);
+      await this.logToDatabase('info', 'sequential_job_tracker', resultMessage);
+      
+      return careerJobs;
     } catch (error) {
-      console.warn(`⚠️ LinkedIn API failed for ${company.name}:`, error);
+      console.error(`❌ Professional job tracking failed for ${company.name}:`, error);
+      return [];
     }
-
-    // STEP 2: Webhook Data (if available)
-    try {
-      console.log(`📡 Step 2: Webhook data for ${company.name}`);
-      const webhookJobs = await this.getWebhookJobs(company);
-      jobs.push(...webhookJobs);
-      console.log(`✅ Webhook found ${webhookJobs.length} jobs`);
-    } catch (error) {
-      console.warn(`⚠️ Webhook failed for ${company.name}:`, error);
-    }
-
-    // STEP 3: Company Career Pages
-    if (jobs.length < 5) {
-      try {
-        console.log(`🏢 Step 3: Career page scraping for ${company.name}`);
-        const careerJobs = await this.getCareerPageJobs(company);
-        jobs.push(...careerJobs);
-        console.log(`✅ Career page found ${careerJobs.length} jobs`);
-      } catch (error) {
-        console.warn(`⚠️ Career page failed for ${company.name}:`, error);
-      }
-    }
-
-    // STEP 4: Custom Search (last resort)
-    if (jobs.length < 3) {
-      try {
-        console.log(`🔍 Step 4: Custom Search fallback for ${company.name}`);
-        const searchJobs = await this.getCustomSearchJobs(company);
-        jobs.push(...searchJobs);
-        console.log(`✅ Custom Search found ${searchJobs.length} jobs`);
-      } catch (error) {
-        console.warn(`⚠️ Custom Search failed for ${company.name}:`, error);
-      }
-    }
-
-    const uniqueJobs = this.deduplicateJobs(jobs);
-    const resultMessage = `✅ Sequential tracking found ${uniqueJobs.length} total jobs for ${company.name}`;
-    console.log(resultMessage);
-    await this.logToDatabase('info', 'sequential_job_tracker', resultMessage);
-
-    return uniqueJobs;
   }
 
   // STEP 1: LinkedIn Official API
@@ -155,32 +118,41 @@ export class SequentialJobTracker {
     }
   }
 
-  // STEP 3: Company Career Pages
-  private async getCareerPageJobs(company: Company): Promise<InsertJobPosting[]> {
+  // PROFESSIONAL CAREER PAGE EXTRACTION
+  private async getProfessionalCareerPageJobs(company: Company): Promise<InsertJobPosting[]> {
     if (!company.careerPageUrl && !company.website) return [];
 
     try {
       const careerUrl = company.careerPageUrl || `${company.website}/careers`;
-      console.log(`Scraping career page: ${careerUrl}`);
+      console.log(`🎯 Professional extraction from: ${careerUrl}`);
       
-      // Basic career page scraping
       const response = await fetch(careerUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
       });
       
-      if (!response.ok) return [];
+      if (!response.ok) {
+        console.warn(`❌ Career page returned ${response.status} for ${company.name}`);
+        return [];
+      }
       
       const html = await response.text();
-      const jobs = this.extractJobsFromHTML(html, company);
+      const jobs = this.extractProfessionalJobsFromHTML(html, company);
       
-      return jobs.filter(job => {
+      // Filter by date and validate quality
+      const qualityJobs = jobs.filter(job => {
         const postedDate = job.postedDate || new Date();
-        return postedDate >= new Date('2025-08-14');
+        const isRecent = postedDate >= new Date('2025-08-14');
+        const isQuality = this.validateJobQuality(job);
+        return isRecent && isQuality;
       });
+      
+      console.log(`🎯 Extracted ${jobs.length} raw jobs, ${qualityJobs.length} passed quality check`);
+      return qualityJobs;
+      
     } catch (error) {
-      console.error(`Career page scraping error for ${company.name}:`, error);
+      console.error(`❌ Professional job extraction failed for ${company.name}:`, error);
       return [];
     }
   }
@@ -273,39 +245,146 @@ export class SequentialJobTracker {
     });
   }
 
-  private extractJobsFromHTML(html: string, company: Company): InsertJobPosting[] {
+  private extractProfessionalJobsFromHTML(html: string, company: Company): InsertJobPosting[] {
     const jobs: InsertJobPosting[] = [];
     
-    // Simple job extraction patterns
-    const jobPatterns = [
-      /<h[1-6][^>]*>([^<]*(?:engineer|developer|manager|analyst|specialist|coordinator)[^<]*)<\/h[1-6]>/gi,
-      /<a[^>]*href="[^"]*job[^"]*"[^>]*>([^<]+)<\/a>/gi,
-      /<div[^>]*class="[^"]*job[^"]*"[^>]*>.*?<.*?>([^<]+)<\/.*?>/gi
+    // PROFESSIONAL JOB EXTRACTION PATTERNS
+    const professionalPatterns = [
+      // Job titles in headers with professional keywords
+      /<h[1-6][^>]*>\s*([^<]*(?:Engineer|Developer|Manager|Director|Lead|Senior|Principal|Analyst|Specialist|Coordinator|Designer|Architect|Consultant|Executive|Officer)[^<]*?)\s*<\/h[1-6]>/gi,
+      
+      // Job links with titles
+      /<a[^>]*href="[^"]*(?:job|career|position)[^"]*"[^>]*>\s*([^<]{10,80})\s*<\/a>/gi,
+      
+      // Job cards/containers
+      /<div[^>]*class="[^"]*(?:job|position|role|career)[^"]*"[^>]*>[^<]*<[^>]*>\s*([^<]{10,80})\s*<\/[^>]*>/gi,
+      
+      // List items with job titles
+      /<li[^>]*>[^<]*<[^>]*>\s*([^<]*(?:Engineer|Developer|Manager|Director|Lead|Senior|Principal)[^<]*?)\s*<\/[^>]*>/gi,
+      
+      // Span/div with job title classes
+      /<(?:span|div)[^>]*class="[^"]*(?:title|name|position)[^"]*"[^>]*>\s*([^<]{10,80})\s*<\/(?:span|div)>/gi
     ];
     
-    for (const pattern of jobPatterns) {
+    for (const pattern of professionalPatterns) {
       let match;
       while ((match = pattern.exec(html)) !== null) {
-        const title = match[1].trim();
-        if (title.length > 5 && title.length < 100) {
+        const rawTitle = match[1].trim();
+        const cleanTitle = this.cleanJobTitle(rawTitle);
+        
+        if (this.isValidJobTitle(cleanTitle)) {
+          const location = this.extractLocationFromContext(html, match.index) || 'Remote/Hybrid';
+          const jobType = this.extractJobTypeFromContext(html, match.index) || 'Full-time';
+          
           jobs.push({
-            jobTitle: title,
+            jobTitle: cleanTitle,
             company: company.name,
-            location: 'Not specified',
-            jobType: 'Full-time',
-            description: '',
+            location: location,
+            jobType: jobType,
+            description: this.extractJobDescription(html, match.index),
             requirements: '',
-            salary: null,
+            salary: this.extractSalaryFromContext(html, match.index),
             postedDate: new Date(),
             applicationUrl: company.careerPageUrl || company.website || '',
-            source: 'Career Page',
+            source: 'Professional Career Page',
             foundDate: new Date()
           });
         }
       }
     }
     
-    return jobs;
+    return this.deduplicateJobs(jobs);
+  }
+  
+  private cleanJobTitle(title: string): string {
+    return title
+      .replace(/[\n\r\t]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/^[^a-zA-Z]*/, '')
+      .replace(/[^a-zA-Z]*$/, '')
+      .trim();
+  }
+  
+  private isValidJobTitle(title: string): boolean {
+    if (!title || title.length < 5 || title.length > 100) return false;
+    
+    // Must contain professional keywords
+    const professionalKeywords = [
+      'engineer', 'developer', 'manager', 'director', 'lead', 'senior', 'principal',
+      'analyst', 'specialist', 'coordinator', 'designer', 'architect', 'consultant',
+      'executive', 'officer', 'head', 'chief', 'vice president', 'vp'
+    ];
+    
+    const hasKeyword = professionalKeywords.some(keyword => 
+      title.toLowerCase().includes(keyword)
+    );
+    
+    // Reject generic/invalid titles
+    const invalidTitles = [
+      'working', 'job', 'position', 'role', 'career', 'opportunity', 'opening',
+      'apply', 'click', 'here', 'more', 'view', 'see', 'all', 'jobs'
+    ];
+    
+    const isInvalid = invalidTitles.some(invalid => 
+      title.toLowerCase() === invalid || title.toLowerCase().includes(invalid)
+    );
+    
+    return hasKeyword && !isInvalid;
+  }
+  
+  private extractLocationFromContext(html: string, index: number): string | null {
+    const contextStart = Math.max(0, index - 500);
+    const contextEnd = Math.min(html.length, index + 500);
+    const context = html.slice(contextStart, contextEnd);
+    
+    const locationPatterns = [
+      /(?:location|office|based|remote|hybrid)[^>]*>\s*([^<]{3,50})\s*</gi,
+      /(Remote|Hybrid|London|New York|San Francisco|Berlin|Amsterdam|Dublin|Malta|Gibraltar)/gi
+    ];
+    
+    for (const pattern of locationPatterns) {
+      const match = context.match(pattern);
+      if (match) return match[1] || match[0];
+    }
+    
+    return null;
+  }
+  
+  private extractJobTypeFromContext(html: string, index: number): string | null {
+    const contextStart = Math.max(0, index - 300);
+    const contextEnd = Math.min(html.length, index + 300);
+    const context = html.slice(contextStart, contextEnd);
+    
+    const typeMatch = context.match(/(Full-time|Part-time|Contract|Temporary|Permanent|Freelance)/gi);
+    return typeMatch ? typeMatch[0] : null;
+  }
+  
+  private extractSalaryFromContext(html: string, index: number): string | null {
+    const contextStart = Math.max(0, index - 300);
+    const contextEnd = Math.min(html.length, index + 300);
+    const context = html.slice(contextStart, contextEnd);
+    
+    const salaryMatch = context.match(/[£$€]\s*[\d,]+(?:\s*-\s*[£$€]?\s*[\d,]+)?(?:\s*(?:per\s+)?(?:year|month|hour|annum))?/gi);
+    return salaryMatch ? salaryMatch[0] : null;
+  }
+  
+  private extractJobDescription(html: string, index: number): string {
+    const contextStart = Math.max(0, index - 200);
+    const contextEnd = Math.min(html.length, index + 800);
+    const context = html.slice(contextStart, contextEnd);
+    
+    // Extract text content, remove HTML tags
+    const textContent = context.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    return textContent.slice(0, 500);
+  }
+  
+  private validateJobQuality(job: InsertJobPosting): boolean {
+    // Quality validation
+    if (!job.jobTitle || job.jobTitle.length < 5) return false;
+    if (job.jobTitle.toLowerCase().includes('working')) return false;
+    if (job.jobTitle.toLowerCase().includes('click')) return false;
+    
+    return true;
   }
 
   private async logToDatabase(level: string, service: string, message: string): Promise<void> {

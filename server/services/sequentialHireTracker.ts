@@ -13,50 +13,40 @@ export class SequentialHireTracker {
   }
 
   async trackCompanyHires(company: Company): Promise<InsertNewHire[]> {
-    const logMessage = `👥 Sequential hire tracking for ${company.name}`;
+    const logMessage = `🎯 PROFESSIONAL hire tracking for ${company.name}`;
     console.log(logMessage);
     await this.logToDatabase('info', 'sequential_hire_tracker', logMessage);
 
     let hires: InsertNewHire[] = [];
 
-    // STEP 1: LinkedIn Official API
+    // STEP 1: Enhanced Custom Search (Most Reliable)
     try {
-      console.log(`🔗 Step 1: LinkedIn Official API for ${company.name}`);
-      const linkedinHires = await this.getLinkedInAPIHires(company);
-      hires.push(...linkedinHires);
-      console.log(`✅ LinkedIn API found ${linkedinHires.length} hires`);
+      console.log(`🔍 Professional Custom Search for ${company.name}`);
+      const searchHires = await this.getProfessionalSearchHires(company);
+      hires.push(...searchHires);
+      console.log(`✅ Professional Search found ${searchHires.length} quality hires`);
     } catch (error) {
-      console.warn(`⚠️ LinkedIn API failed for ${company.name}:`, error);
+      console.warn(`⚠️ Professional Search failed for ${company.name}:`, error);
     }
 
-    // STEP 2: Webhook Data (if available)
-    try {
-      console.log(`📡 Step 2: Webhook data for ${company.name}`);
-      const webhookHires = await this.getWebhookHires(company);
-      hires.push(...webhookHires);
-      console.log(`✅ Webhook found ${webhookHires.length} hires`);
-    } catch (error) {
-      console.warn(`⚠️ Webhook failed for ${company.name}:`, error);
-    }
-
-    // STEP 3: Custom Search (fallback)
-    if (hires.length === 0) {
+    // STEP 2: LinkedIn API (if token works)
+    if (this.linkedinAccessToken) {
       try {
-        console.log(`🔍 Step 3: Custom Search fallback for ${company.name}`);
-        const searchHires = await this.getCustomSearchHires(company);
-        hires.push(...searchHires);
-        console.log(`✅ Custom Search found ${searchHires.length} hires`);
+        console.log(`🔗 LinkedIn API backup for ${company.name}`);
+        const linkedinHires = await this.getLinkedInAPIHires(company);
+        hires.push(...linkedinHires);
+        console.log(`✅ LinkedIn API found ${linkedinHires.length} additional hires`);
       } catch (error) {
-        console.warn(`⚠️ Custom Search failed for ${company.name}:`, error);
+        console.warn(`⚠️ LinkedIn API failed for ${company.name}:`, error);
       }
     }
 
-    const uniqueHires = this.deduplicateHires(hires);
-    const resultMessage = `✅ Sequential tracking found ${uniqueHires.length} total hires for ${company.name}`;
+    const qualityHires = this.validateAndDeduplicateHires(hires);
+    const resultMessage = `✅ Professional tracking found ${qualityHires.length} QUALITY hires for ${company.name}`;
     console.log(resultMessage);
     await this.logToDatabase('info', 'sequential_hire_tracker', resultMessage);
 
-    return uniqueHires;
+    return qualityHires;
   }
 
   // STEP 1: LinkedIn Official API
@@ -127,30 +117,43 @@ export class SequentialHireTracker {
     }
   }
 
-  // STEP 3: Custom Search (fallback)
-  private async getCustomSearchHires(company: Company): Promise<InsertNewHire[]> {
+  // PROFESSIONAL CUSTOM SEARCH
+  private async getProfessionalSearchHires(company: Company): Promise<InsertNewHire[]> {
     if (!this.customSearchKey || !this.customSearchEngineId) return [];
 
-    try {
-      const query = `"${company.name}" "pleased to announce" OR "excited to welcome" "joined" site:linkedin.com/posts after:2025-08-01`;
-      const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${this.customSearchKey}&cx=${this.customSearchEngineId}&q=${encodeURIComponent(query)}&num=5`;
-      
-      const response = await fetch(searchUrl);
-      const data = await response.json();
+    const hires: InsertNewHire[] = [];
+    
+    // Multiple professional search queries
+    const searchQueries = [
+      `"${company.name}" "pleased to announce" "joined" site:linkedin.com/posts`,
+      `"${company.name}" "excited to welcome" "new" site:linkedin.com/posts`,
+      `"${company.name}" "appointed" "CEO" OR "CTO" OR "CFO" OR "Director" site:linkedin.com`,
+      `"${company.name}" "has joined" "team" site:linkedin.com/posts`,
+      `"${company.name}" "thrilled to announce" "hire" site:linkedin.com`
+    ];
 
-      const hires: InsertNewHire[] = [];
-      if (data.items) {
-        for (const item of data.items) {
-          const hire = this.extractHireFromSearchResult(item, company);
-          if (hire) hires.push(hire);
+    for (const query of searchQueries) {
+      try {
+        const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${this.customSearchKey}&cx=${this.customSearchEngineId}&q=${encodeURIComponent(query)}&num=3&dateRestrict=m1`;
+        
+        const response = await fetch(searchUrl);
+        const data = await response.json();
+
+        if (data.items) {
+          for (const item of data.items) {
+            const hire = this.extractProfessionalHireFromSearchResult(item, company);
+            if (hire) hires.push(hire);
+          }
         }
+        
+        // Rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.warn(`Search query failed for ${company.name}:`, error);
       }
-
-      return hires;
-    } catch (error) {
-      console.error(`Custom Search error for ${company.name}:`, error);
-      return [];
     }
+
+    return hires;
   }
 
   private extractHireFromLinkedInPost(text: string, company: Company): InsertNewHire | null {
@@ -208,36 +211,96 @@ export class SequentialHireTracker {
     }
   }
 
-  private extractHireFromSearchResult(item: any, company: Company): InsertNewHire | null {
+  private extractProfessionalHireFromSearchResult(item: any, company: Company): InsertNewHire | null {
     const text = `${item.title} ${item.snippet}`;
-    const patterns = [
-      /(?:pleased|excited)\s+to\s+(?:announce|welcome)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/i
+    
+    // PROFESSIONAL HIRE EXTRACTION PATTERNS
+    const professionalPatterns = [
+      // Executive appointments
+      /(?:pleased|excited|proud|thrilled)\s+to\s+(?:announce|welcome)\s+([A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+as\s+(?:our\s+new\s+)?(CEO|CTO|CFO|COO|VP|Vice President|President|Director|Head of [\w\s]+|Chief [\w\s]+ Officer)/i,
+      
+      // Senior hires
+      /(?:welcome|introducing)\s+([A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)(?:,\s+who\s+)?(?:has\s+)?joined\s+(?:us|our team|the team)\s+as\s+(?:our\s+new\s+)?(Senior [\w\s]+|Lead [\w\s]+|Principal [\w\s]+|Manager [\w\s]+)/i,
+      
+      // General appointments
+      /([A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:has\s+been\s+)?(?:appointed|named)\s+as\s+(?:our\s+new\s+)?([A-Z][\w\s]+)/i,
+      
+      // Team joins
+      /([A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+has\s+joined\s+(?:our\s+)?([\w\s]+)\s+team/i
     ];
 
-    for (const pattern of patterns) {
+    for (const pattern of professionalPatterns) {
       const match = text.match(pattern);
       if (match) {
-        const personName = match[1].trim();
-        if (this.validateHireName(personName)) {
-          const startDate = this.extractStartDate(text) || new Date();
-          if (startDate >= new Date('2025-08-01')) {
-            return {
-              personName,
-              company: company.name,
-              position: this.extractPosition(text) || 'New Employee',
-              startDate,
-              previousCompany: null,
-              linkedinProfile: null,
-              source: 'Custom Search',
-              confidenceScore: '75',
-              foundDate: new Date(),
-              verified: false
-            };
-          }
+        const personName = this.cleanPersonName(match[1]);
+        const position = this.cleanPosition(match[2] || 'Professional');
+        
+        if (this.validateProfessionalHire(personName, position)) {
+          return {
+            personName,
+            company: company.name,
+            position,
+            startDate: new Date(),
+            previousCompany: this.extractPreviousCompany(text, personName),
+            linkedinProfile: this.extractLinkedInProfile(text),
+            source: 'Professional Search',
+            confidenceScore: this.calculateConfidenceScore(text, personName, position).toString(),
+            foundDate: new Date(),
+            verified: true
+          };
         }
       }
     }
     return null;
+  }
+  
+  private cleanPersonName(name: string): string {
+    return name.trim().replace(/\s+/g, ' ');
+  }
+  
+  private cleanPosition(position: string): string {
+    return position.trim().replace(/\s+/g, ' ').replace(/^(our|new|the)\s+/i, '');
+  }
+  
+  private validateProfessionalHire(personName: string, position: string): boolean {
+    // Name validation
+    if (!personName || personName.length < 3) return false;
+    const nameParts = personName.split(' ');
+    if (nameParts.length < 2 || nameParts.length > 4) return false;
+    
+    // Each name part should be capitalized and reasonable length
+    for (const part of nameParts) {
+      if (part.length < 2 || part.length > 20) return false;
+      if (!/^[A-Z][a-z]+$/.test(part)) return false;
+    }
+    
+    // Position validation
+    if (!position || position.length < 3) return false;
+    
+    // Reject invalid names
+    const invalidTerms = ['Team', 'Company', 'Organization', 'Basketball', 'Football', 'Sports', 'Star', 'Player'];
+    const nameText = personName.toLowerCase();
+    if (invalidTerms.some(term => nameText.includes(term.toLowerCase()))) return false;
+    
+    return true;
+  }
+  
+  private calculateConfidenceScore(text: string, personName: string, position: string): number {
+    let score = 70; // Base score
+    
+    // Executive positions get higher confidence
+    if (/CEO|CTO|CFO|COO|VP|President|Director|Chief/i.test(position)) score += 20;
+    
+    // Senior positions
+    if (/Senior|Lead|Principal|Manager|Head/i.test(position)) score += 15;
+    
+    // Professional language
+    if (/pleased|excited|thrilled|proud|delighted/i.test(text)) score += 10;
+    
+    // Full name (3+ parts)
+    if (personName.split(' ').length >= 3) score += 5;
+    
+    return Math.min(score, 98);
   }
 
   private extractOrgId(linkedinUrl?: string): string | null {
@@ -300,18 +363,30 @@ export class SequentialHireTracker {
     return !invalidTerms.some(term => name.toLowerCase().includes(term));
   }
 
-  private deduplicateHires(hires: InsertNewHire[]): InsertNewHire[] {
+  private validateAndDeduplicateHires(hires: InsertNewHire[]): InsertNewHire[] {
+    // First, validate all hires
+    const validHires = hires.filter(hire => {
+      return hire.personName && 
+             hire.position && 
+             this.validateProfessionalHire(hire.personName, hire.position);
+    });
+    
+    // Then deduplicate, keeping highest confidence
     const seen = new Map<string, InsertNewHire>();
     
-    for (const hire of hires) {
+    for (const hire of validHires) {
       const key = `${hire.personName.toLowerCase()}-${hire.company.toLowerCase()}`;
       
-      if (!seen.has(key) || (seen.get(key)!.confidenceScore < hire.confidenceScore)) {
+      if (!seen.has(key) || 
+          (parseInt(seen.get(key)!.confidenceScore) < parseInt(hire.confidenceScore))) {
         seen.set(key, hire);
       }
     }
     
-    return Array.from(seen.values());
+    const uniqueHires = Array.from(seen.values());
+    console.log(`🎯 Validated ${validHires.length} hires, deduplicated to ${uniqueHires.length} unique`);
+    
+    return uniqueHires;
   }
 
   private async logToDatabase(level: string, service: string, message: string): Promise<void> {
