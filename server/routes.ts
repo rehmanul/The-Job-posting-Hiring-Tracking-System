@@ -504,7 +504,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         companiesCount: companies.length,
         companies: companies.map(c => ({ 
           name: c.name, 
-          website: c.website, 
+          website: c.website,
+          linkedinUrl: c.linkedinUrl,
+          careerPageUrl: c.careerPageUrl,
           isActive: c.isActive 
         }))
       });
