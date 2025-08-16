@@ -413,14 +413,11 @@ export class JobTrackerService {
       const trackedJobs = await jobTracker.trackCompanyJobs(company);
       jobs.push(...trackedJobs);
         
-        const apiMessage = `✅ LinkedIn-only API found ${linkedinJobs.length} jobs for ${company.name}`;
-        console.log(apiMessage);
-        await this.logToDatabase('info', 'job_tracker', apiMessage);
-      } catch (error) {
-        console.warn(`⚠️ LinkedIn-only job tracking failed for ${company.name}:`, error);
-      }
-    } else {
-      console.warn(`⚠️ No LinkedIn URL or access token for ${company.name}`);
+      const apiMessage = `✅ Professional tracker found ${trackedJobs.length} jobs for ${company.name}`;
+      console.log(apiMessage);
+      await this.logToDatabase('info', 'job_tracker', apiMessage);
+    } catch (error) {
+      console.warn(`⚠️ Professional job tracking failed for ${company.name}:`, error);
     }
     
     return jobs;
