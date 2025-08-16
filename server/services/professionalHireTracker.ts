@@ -139,8 +139,8 @@ export class ProfessionalHireTracker {
     
     // Advanced LinkedIn hire patterns
     const patterns = [
-      // Executive announcements - fixed to extract just the name
-      /(?:pleased|excited|thrilled|proud)\s+to\s+(?:announce|welcome)\s+(?:that\s+)?([A-Z][a-z]+\s+[A-Z][a-z]+)\s+(?:has\s+joined|as\s+(?:our\s+new\s+)?(CEO|CTO|CFO|COO|VP|Vice\s+President|President|Director|Head\s+of\s+[\w\s]+|Chief\s+[\w\s]+Officer))/i,
+      // Executive announcements - extract name only
+      /(?:pleased|excited|thrilled|proud)\s+to\s+(?:announce|welcome)\s+(?:that\s+)?([A-Z][a-z]+\s+[A-Z][a-z]+)(?:\s+has|\s+as)/i,
       
       // Team joins
       /(?:welcome|introducing)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]*)*\s+[A-Z][a-z]+)\s+(?:to\s+(?:our\s+)?team|who\s+(?:has\s+)?joined\s+us)\s+as\s+(?:our\s+new\s+)?([\w\s]+)/i,
@@ -156,7 +156,7 @@ export class ProfessionalHireTracker {
       const match = text.match(pattern);
       if (match) {
         const personName = this.cleanPersonName(match[1]);
-        const position = this.cleanPosition(match[2] || 'New Employee');
+        const position = this.extractPosition(text) || 'New Employee';
         
         if (this.validateProfessionalHire(personName, position, text)) {
           return {
