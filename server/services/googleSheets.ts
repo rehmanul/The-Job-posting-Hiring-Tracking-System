@@ -161,13 +161,13 @@ export class GoogleSheetsService {
       case 'New Hires':
         return ['Person Name', 'Company', 'Position', 'Start Date', 'Previous Company', 'LinkedIn Profile', 'Source', 'Confidence Score', 'Found Date', 'Verified'];
       case 'Activity Log':
-        return ['Timestamp', 'Type', 'Company', 'Details', 'Status', 'Source'];
+        return ['Timestamp', 'Type', 'Action', 'Details', 'Status', 'User'];
       case 'Health Metrics':
         return ['Timestamp', 'Service', 'Status', 'Response Time', 'Error Message', 'CPU Usage', 'Memory Usage', 'Details'];
       case 'Summary':
         return ['Report Type', 'Report Date', 'Period', 'Total Jobs', 'Total Hires', 'Active Companies', 'Growth Rate %', 'Top Company', 'Top Company Jobs', 'Remote Jobs', 'Most Active Day'];
       case 'Analytics':
-        return ['Timestamp', 'Total Companies', 'Active Companies', 'Jobs Found Today', 'Hires Found Today', 'Successful Scans', 'Failed Scans', 'Avg Response Time', 'Details'];
+        return ['Date', 'Total Companies', 'Active Companies', 'Jobs Found', 'Hires Found', 'Successful Scans', 'Failed Scans', 'Avg Response Time'];
       default:
         return ['Data'];
     }
@@ -356,10 +356,10 @@ export class GoogleSheetsService {
       await sheet.addRow({
         'Timestamp': utcTimestamp,
         'Type': type,
-        'Company': company,
+        'Action': type,
         'Details': details,
         'Status': status,
-        'Source': 'Job Tracker'
+        'User': 'System'
       });
     } catch (error: any) {
       console.error('❌ Failed to log activity:', error);
@@ -410,15 +410,14 @@ export class GoogleSheetsService {
       const utcTimestamp = new Date().toISOString().replace('T', ' ').split('.')[0] + ' UTC';
 
       await sheet.addRow({
-        'Timestamp': utcTimestamp,
+        'Date': utcTimestamp.split(' ')[0],
         'Total Companies': analytics.totalCompanies ?? 0,
         'Active Companies': analytics.activeCompanies ?? 0,
-        'Jobs Found Today': analytics.jobsFound ?? 0,
-        'Hires Found Today': analytics.hiresFound ?? 0,
+        'Jobs Found': analytics.jobsFound ?? 0,
+        'Hires Found': analytics.hiresFound ?? 0,
         'Successful Scans': analytics.successfulScans ?? 0,
         'Failed Scans': analytics.failedScans ?? 0,
-        'Avg Response Time': analytics.avgResponseTime ?? '',
-        'Details': analytics.metadata ? JSON.stringify(analytics.metadata) : ''
+        'Avg Response Time': analytics.avgResponseTime ?? ''
       });
     } catch (error: any) {
       console.error('❌ Failed to sync analytics:', error);
