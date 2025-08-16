@@ -409,7 +409,23 @@ export class JobTrackerService {
   private async scrapeCompanyJobs(company: Company): Promise<InsertJobPosting[]> {
     const jobs: InsertJobPosting[] = [];
     
-    // Only scrape career pages for job postings
+    // 1. Use Professional LinkedIn API for job tracking
+    if (company.linkedinUrl && process.env.LINKEDIN_ACCESS_TOKEN) {
+      try {
+        const { LinkedInProfessionalAPI } = await import('./linkedinProfessionalAPI');
+        const linkedinAPI = new LinkedInProfessionalAPI();
+        const linkedinJobs = await linkedinAPI.trackCompanyJobs(company);
+        jobs.push(...linkedinJobs);
+        
+        const apiMessage = `✅ LinkedIn API found ${linkedinJobs.length} jobs for ${company.name}`;
+        console.log(apiMessage);
+        await this.logToDatabase('info', 'job_tracker', apiMessage);
+      } catch (error) {
+        console.warn(`⚠️ LinkedIn API job tracking failed for ${company.name}:`, error);
+      }
+    }
+    
+    // 2. Fallback to career page scraping
     if (company.careerPageUrl) {
       try {
         const websiteJobs = await this.websiteScraper.scrapeCompanyWebsite(company);

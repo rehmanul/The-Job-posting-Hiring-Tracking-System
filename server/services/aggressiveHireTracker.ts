@@ -132,53 +132,24 @@ export class AggressiveHireTracker {
   
   private async getLinkedInAPIHires(companyName: string, linkedinUrl: string): Promise<InsertNewHire[]> {
     try {
-      const apiLogMessage = `🔗 Attempting LinkedIn API for ${companyName}`;
+      const apiLogMessage = `🔗 Using Professional LinkedIn API for ${companyName}`;
       console.log(apiLogMessage);
       await this.logToDatabase('info', 'linkedin_api', apiLogMessage);
       
-      console.log(`🔗 LinkedIn URL: ${linkedinUrl}`);
-      console.log(`🔗 Access Token: ${process.env.LINKEDIN_ACCESS_TOKEN ? 'Present' : 'Missing'}`);
+      const { LinkedInProfessionalAPI } = await import('./linkedinProfessionalAPI');
+      const linkedinAPI = new LinkedInProfessionalAPI();
       
-      // Try multiple API endpoints
-      const endpoints = [
-        `https://api.linkedin.com/rest/posts?q=author&author=${encodeURIComponent(linkedinUrl)}&count=50`,
-        `https://api.linkedin.com/rest/organizationAcls?q=roleAssignee&projection=(elements*(organizationalTarget~(localizedName,vanityName)))&count=50`
-      ];
+      const company = { name: companyName, linkedinUrl };
+      const hires = await linkedinAPI.trackCompanyHires(company as any);
       
-      for (const endpoint of endpoints) {
-        console.log(`🔗 Trying endpoint: ${endpoint}`);
-        
-        const response = await fetch(endpoint, {
-          headers: {
-            'Authorization': `Bearer ${process.env.LINKEDIN_ACCESS_TOKEN}`,
-            'X-Restli-Protocol-Version': '2.0.0',
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        console.log(`🔗 Response status: ${response.status}`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log(`🔗 Response data:`, JSON.stringify(data, null, 2).substring(0, 500));
-          
-          const hires = this.extractHiresFromAPIResponse(data, companyName);
-          if (hires.length > 0) {
-            const successMessage = `✅ LinkedIn API found ${hires.length} hires for ${companyName}`;
-            console.log(successMessage);
-            await this.logToDatabase('info', 'linkedin_api', successMessage);
-            return hires;
-          }
-        } else {
-          const errorText = await response.text();
-          console.warn(`LinkedIn API error ${response.status}: ${errorText}`);
-        }
-      }
+      const successMessage = `✅ Professional LinkedIn API found ${hires.length} hires for ${companyName}`;
+      console.log(successMessage);
+      await this.logToDatabase('info', 'linkedin_api', successMessage);
       
-      return [];
+      return hires;
       
     } catch (error) {
-      console.error('LinkedIn API error:', error);
+      console.error('Professional LinkedIn API error:', error);
       return [];
     }
   }
