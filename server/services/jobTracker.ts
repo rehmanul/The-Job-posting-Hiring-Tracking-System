@@ -199,6 +199,8 @@ export class JobTrackerService {
           await this.logToDatabase('info', 'job_tracker', scanMessage);
           
           const jobs = await this.scrapeCompanyJobs(company);
+          
+          // Deduplicate jobs before processing
           const existingJobs = await storage.getJobPostings();
           const uniqueJobsCount = jobs.filter(jobData => {
             return !existingJobs.some(existing => 
@@ -208,9 +210,6 @@ export class JobTrackerService {
           }).length;
           totalJobsFound += uniqueJobsCount;
           companiesScanned++;
-          
-          // Deduplicate jobs before processing
-          const existingJobs = await storage.getJobPostings();
           const uniqueJobs = jobs.filter(jobData => {
             return !existingJobs.some(existing => 
               existing.jobTitle.toLowerCase() === jobData.jobTitle.toLowerCase() && 
@@ -332,22 +331,20 @@ export class JobTrackerService {
             const foundMessage = `🚀 LinkedIn-only tracker found ${hires.length} professional hires`;
             console.log(foundMessage);
             await this.logToDatabase('info', 'job_tracker', foundMessage);
-            const existingHires = await storage.getNewHires();
-            const uniqueHiresCount = hires.filter(hireData => {
-              return hireData.personName && hireData.company && hireData.position &&
-                !existingHires.some(existing => 
-                  existing.personName.toLowerCase() === hireData.personName.toLowerCase() && 
-                  existing.company.toLowerCase() === company.name.toLowerCase()
-                );
-            }).length;
-            totalHiresFound += uniqueHiresCount;
-            companiesScanned++;
             // Validate and deduplicate hires before processing
             const validHires = hires.filter(hireData => 
               hireData.personName && hireData.company && hireData.position
             );
             
             const existingHires = await storage.getNewHires();
+            const uniqueHiresCount = validHires.filter(hireData => {
+              return !existingHires.some(existing => 
+                existing.personName.toLowerCase() === hireData.personName.toLowerCase() && 
+                existing.company.toLowerCase() === company.name.toLowerCase()
+              );
+            }).length;
+            totalHiresFound += uniqueHiresCount;
+            companiesScanned++;
             const uniqueHires = validHires.filter(hireData => {
               return !existingHires.some(existing => 
                 existing.personName.toLowerCase() === hireData.personName.toLowerCase() && 
