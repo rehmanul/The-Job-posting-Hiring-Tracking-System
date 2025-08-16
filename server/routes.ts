@@ -242,6 +242,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Manual health check trigger
+  app.post("/api/health/check", async (req, res) => {
+    try {
+      if (schedulerService) {
+        const { HealthMonitorService } = await import('./services/healthMonitor');
+        const healthMonitor = new HealthMonitorService();
+        await healthMonitor.initialize();
+        await healthMonitor.performHealthChecks();
+        
+        const health = await healthMonitor.getSystemHealth();
+        res.json({ success: true, health });
+      } else {
+        res.status(500).json({ error: "Scheduler service not available" });
+      }
+    } catch (error: any) {
+      console.error("Error performing health check:", error);
+      res.status(500).json({ error: "Failed to perform health check" });
+    }
+  });
+
+  // Get system health status
+  app.get("/api/health/status", async (req, res) => {
+    try {
+      const { HealthMonitorService } = await import('./services/healthMonitor');
+      const healthMonitor = new HealthMonitorService();
+      await healthMonitor.initialize();
+      
+      const health = await healthMonitor.getSystemHealth();
+      res.json(health);
+    } catch (error: any) {
+      console.error("Error getting health status:", error);
+      res.status(500).json({ error: "Failed to get health status" });
+    }
+  });
+
   // System control endpoints
   app.post("/api/system/pause", async (req, res) => {
     try {

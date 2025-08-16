@@ -156,20 +156,27 @@ export class HealthMonitorService {
     const startTime = Date.now();
     
     try {
-      // Basic check - we can't easily test LinkedIn without actually scraping
-      // so we'll just mark as healthy if credentials are provided
-      const hasCredentials = !!(process.env.LINKEDIN_EMAIL && process.env.LINKEDIN_PASSWORD);
+      // Check LinkedIn API credentials for LinkedIn-only system
+      const hasAccessToken = !!process.env.LINKEDIN_ACCESS_TOKEN;
+      const hasCredentials = !!(process.env.LINKEDIN_CLIENT_ID && process.env.LINKEDIN_CLIENT_SECRET);
       
       const responseTime = Date.now() - startTime;
       
-      if (hasCredentials) {
+      if (hasAccessToken && hasCredentials) {
         await this.recordHealthMetric('linkedin', 'healthy', responseTime);
-      } else {
+      } else if (hasCredentials) {
         await this.recordHealthMetric(
           'linkedin', 
           'degraded', 
           responseTime,
-          'No LinkedIn credentials configured'
+          'LinkedIn credentials configured but no access token'
+        );
+      } else {
+        await this.recordHealthMetric(
+          'linkedin', 
+          'down', 
+          responseTime,
+          'No LinkedIn API credentials configured'
         );
       }
       
@@ -189,7 +196,7 @@ export class HealthMonitorService {
     
     try {
       // Test Slack by checking if we can connect to the API
-      const hasCredentials = !!(process.env.SLACK_BOT_TOKEN && process.env.SLACK_CHANNEL_ID);
+      const hasCredentials = !!(process.env.SLACK_BOT_TOKEN && process.env.SLACK_CHANNEL);
       
       const responseTime = Date.now() - startTime;
       
@@ -219,7 +226,7 @@ export class HealthMonitorService {
     const startTime = Date.now();
     
     try {
-      const hasCredentials = !!(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
+      const hasCredentials = !!(process.env.GMAIL_USER && process.env.GMAIL_PASS);
       
       const responseTime = Date.now() - startTime;
       
