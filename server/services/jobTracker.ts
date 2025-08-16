@@ -159,8 +159,17 @@ export class JobTrackerService {
     try {
       console.log('🔍 Starting job postings scan...');
       
-      const companies = await storage.getCompanies();
-      const activeCompanies = companies.filter(c => c.isActive);
+      let companies = await storage.getCompanies();
+      let activeCompanies = companies.filter(c => c.isActive);
+      
+      // Check if companies are missing LinkedIn URLs and reload if needed
+      const companiesWithoutLinkedIn = activeCompanies.filter(c => !c.linkedinUrl);
+      if (companiesWithoutLinkedIn.length > 0) {
+        console.log(`🔄 ${companiesWithoutLinkedIn.length} companies missing LinkedIn URLs, reloading from Google Sheets...`);
+        await this.syncCompaniesFromGoogleSheets();
+        companies = await storage.getCompanies();
+        activeCompanies = companies.filter(c => c.isActive);
+      }
       
       console.log(`📊 Found ${companies.length} total companies, ${activeCompanies.length} active`);
       
@@ -264,8 +273,17 @@ export class JobTrackerService {
     try {
       console.log('👥 Starting new hires scan...');
       
-      const companies = await storage.getCompanies();
-      const activeCompanies = companies.filter(c => c.isActive);
+      let companies = await storage.getCompanies();
+      let activeCompanies = companies.filter(c => c.isActive);
+      
+      // Check if companies are missing LinkedIn URLs and reload if needed
+      const companiesWithoutLinkedIn = activeCompanies.filter(c => !c.linkedinUrl);
+      if (companiesWithoutLinkedIn.length > 0) {
+        console.log(`🔄 ${companiesWithoutLinkedIn.length} companies missing LinkedIn URLs, reloading from Google Sheets...`);
+        await this.syncCompaniesFromGoogleSheets();
+        companies = await storage.getCompanies();
+        activeCompanies = companies.filter(c => c.isActive);
+      }
       
       console.log(`📊 Found ${companies.length} total companies, ${activeCompanies.length} active`);
       
