@@ -371,17 +371,18 @@ export class ProfessionalHireTracker {
   }
 
   private extractLinkedInProfile(link: string, text: string): string | null {
-    // If the link is already a LinkedIn profile, return it
+    // Only return if it's a personal profile (linkedin.com/in/), not company page
     if (link.includes('linkedin.com/in/')) {
       return link;
     }
     
-    // Try to extract LinkedIn profile from text
+    // Try to extract personal LinkedIn profile from text content
     const profileMatch = text.match(/linkedin\.com\/in\/([\w-]+)/i);
     if (profileMatch) {
       return `https://linkedin.com/in/${profileMatch[1]}`;
     }
     
+    // Don't return company LinkedIn URLs - return null instead
     return null;
   }
 
