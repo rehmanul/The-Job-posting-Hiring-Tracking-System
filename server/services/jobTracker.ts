@@ -199,33 +199,40 @@ export class JobTrackerService {
           await this.logToDatabase('info', 'job_tracker', scanMessage);
           
           const jobs = await this.scrapeCompanyJobs(company);
-          totalJobsFound += jobs.length;
+          const existingJobs = await storage.getJobPostings();
+          const uniqueJobsCount = jobs.filter(jobData => {
+            return !existingJobs.some(existing => 
+              existing.jobTitle.toLowerCase() === jobData.jobTitle.toLowerCase() && 
+              existing.company.toLowerCase() === company.name.toLowerCase()
+            );
+          }).length;
+          totalJobsFound += uniqueJobsCount;
           companiesScanned++;
           
-          for (const jobData of jobs) {
+          // Deduplicate jobs before processing
+          const existingJobs = await storage.getJobPostings();
+          const uniqueJobs = jobs.filter(jobData => {
+            return !existingJobs.some(existing => 
+              existing.jobTitle.toLowerCase() === jobData.jobTitle.toLowerCase() && 
+              existing.company.toLowerCase() === company.name.toLowerCase()
+            );
+          });
+          
+          console.log(`📊 Found ${jobs.length} jobs, ${uniqueJobs.length} are truly NEW`);
+          
+          for (const jobData of uniqueJobs) {
             try {
-              // Check if job already exists (NEW jobs only)
-              const existingJobs = await storage.getJobPostings();
-              const isDuplicate = existingJobs.some(existing => 
-                existing.jobTitle === jobData.jobTitle && 
-                existing.company === company.name
-              );
-              
-              if (isDuplicate) {
-                console.log(`🔄 Skipping existing job: ${jobData.jobTitle} at ${company.name}`);
-                continue;
-              }
-              
               const job = await storage.createJobPosting({
                 ...jobData,
                 company: company.name,
               });
               
+              // Only notify for truly unique jobs
               await this.googleSheets.syncJobPosting(job);
               await this.slackService.sendJobAlert(job);
               await this.emailService.sendJobAlert(job);
               
-              const jobMessage = `✅ NEW job processed: ${job.jobTitle} at ${job.company}`;
+              const jobMessage = `✅ NEW UNIQUE job processed: ${job.jobTitle} at ${job.company}`;
               console.log(jobMessage);
               await this.logToDatabase('info', 'job_tracker', jobMessage);
             } catch (err) {
@@ -317,34 +324,40 @@ export class JobTrackerService {
             console.log(hireMessage);
             await this.logToDatabase('info', 'job_tracker', hireMessage);
             
-            // Professional hire tracking
-            const { ProfessionalHireTracker } = await import('./professionalHireTracker');
-            const hireTracker = new ProfessionalHireTracker();
+            // Sequential hire tracking: LinkedIn API >> Webhook >> Custom Search
+            const { SequentialHireTracker } = await import('./sequentialHireTracker');
+            const hireTracker = new SequentialHireTracker();
             
             const hires = await hireTracker.trackCompanyHires(company);
             const foundMessage = `🚀 LinkedIn-only tracker found ${hires.length} professional hires`;
             console.log(foundMessage);
             await this.logToDatabase('info', 'job_tracker', foundMessage);
-            totalHiresFound += hires.length;
+            const existingHires = await storage.getNewHires();
+            const uniqueHiresCount = hires.filter(hireData => {
+              return hireData.personName && hireData.company && hireData.position &&
+                !existingHires.some(existing => 
+                  existing.personName.toLowerCase() === hireData.personName.toLowerCase() && 
+                  existing.company.toLowerCase() === company.name.toLowerCase()
+                );
+            }).length;
+            totalHiresFound += uniqueHiresCount;
             companiesScanned++;
-            for (const hireData of hires) {
-              // Validate hireData fields
-              if (!hireData.personName || !hireData.company || !hireData.position) {
-                console.warn(`⚠️ Skipping hire with missing fields:`, JSON.stringify(hireData));
-                continue;
-              }
-              // Check if hire already exists (NEW hires only)
-              const existingHires = await storage.getNewHires();
-              const isDuplicate = existingHires.some(existing => 
-                existing.personName === hireData.personName && 
-                existing.company === company.name
+            // Validate and deduplicate hires before processing
+            const validHires = hires.filter(hireData => 
+              hireData.personName && hireData.company && hireData.position
+            );
+            
+            const existingHires = await storage.getNewHires();
+            const uniqueHires = validHires.filter(hireData => {
+              return !existingHires.some(existing => 
+                existing.personName.toLowerCase() === hireData.personName.toLowerCase() && 
+                existing.company.toLowerCase() === company.name.toLowerCase()
               );
-              
-              if (isDuplicate) {
-                console.log(`🔄 Skipping existing hire: ${hireData.personName} at ${company.name}`);
-                continue;
-              }
-              
+            });
+            
+            console.log(`📊 Found ${hires.length} hires, ${uniqueHires.length} are truly NEW`);
+            
+            for (const hireData of uniqueHires) {
               let hire;
               try {
                 hire = await storage.createNewHire({
@@ -355,22 +368,17 @@ export class JobTrackerService {
                 console.error('❌ Failed to create new hire in storage:', err, hireData);
                 continue;
               }
+              
+              // Only notify for truly unique hires
               try {
                 await this.googleSheets.syncNewHire(hire);
-              } catch (err) {
-                console.error('❌ Failed to sync new hire to Google Sheets:', err, hire);
-              }
-              try {
                 await this.slackService.sendHireAlert(hire);
-              } catch (err) {
-                console.error('❌ Failed to send Slack hire alert:', err, hire);
-              }
-              try {
                 await this.emailService.sendHireAlert(hire);
               } catch (err) {
-                console.error('❌ Failed to send email hire alert:', err, hire);
+                console.error('❌ Failed to send notifications:', err, hire);
               }
-              const processedMessage = `✅ New hire processed: ${hire.personName} at ${hire.company}`;
+              
+              const processedMessage = `✅ NEW UNIQUE hire processed: ${hire.personName} at ${hire.company}`;
               console.log(processedMessage);
               await this.logToDatabase('info', 'job_tracker', processedMessage);
             }
@@ -406,10 +414,10 @@ export class JobTrackerService {
   private async scrapeCompanyJobs(company: Company): Promise<InsertJobPosting[]> {
     const jobs: InsertJobPosting[] = [];
     
-    // Professional job tracking
+    // Sequential job tracking: LinkedIn API >> Webhook >> Google Talent API >> Custom Search
     try {
-      const { ProfessionalJobTracker } = await import('./professionalJobTracker');
-      const jobTracker = new ProfessionalJobTracker();
+      const { SequentialJobTracker } = await import('./sequentialJobTracker');
+      const jobTracker = new SequentialJobTracker();
       const trackedJobs = await jobTracker.trackCompanyJobs(company);
       jobs.push(...trackedJobs);
         

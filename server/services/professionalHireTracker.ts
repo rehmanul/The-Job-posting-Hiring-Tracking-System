@@ -2,30 +2,56 @@ import type { Company, InsertNewHire } from '@shared/schema';
 import { storage } from '../storage';
 
 export class ProfessionalHireTracker {
+  private linkedinAccessToken: string;
   private customSearchKey: string;
   private customSearchEngineId: string;
 
   constructor() {
+    this.linkedinAccessToken = process.env.LINKEDIN_ACCESS_TOKEN || '';
     this.customSearchKey = process.env.GOOGLE_CUSTOM_SEARCH_API_KEY || '';
     this.customSearchEngineId = process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID || '';
   }
 
   async trackCompanyHires(company: Company): Promise<InsertNewHire[]> {
-    const logMessage = `👥 Professional hire tracking for ${company.name}`;
+    const logMessage = `👥 Sequential hire tracking for ${company.name}`;
     console.log(logMessage);
     await this.logToDatabase('info', 'hire_tracker', logMessage);
 
-    if (!this.customSearchKey || !this.customSearchEngineId) {
-      console.warn('⚠️ Google Custom Search not configured');
-      return [];
+    let hires: InsertNewHire[] = [];
+
+    // STEP 1: LinkedIn Official API
+    try {
+      console.log(`🔗 Step 1: LinkedIn Official API for ${company.name}`);
+      const linkedinAPIHires = await this.getLinkedInAPIHires(company);
+      hires.push(...linkedinAPIHires);
+      console.log(`✅ LinkedIn API found ${linkedinAPIHires.length} hires`);
+    } catch (error) {
+      console.warn(`⚠️ LinkedIn API failed for ${company.name}:`, error);
     }
 
-    const hires: InsertNewHire[] = [];
+    // STEP 2: Webhook Data (if available)
+    try {
+      console.log(`📡 Step 2: Webhook data for ${company.name}`);
+      const webhookHires = await this.getWebhookHires(company);
+      hires.push(...webhookHires);
+      console.log(`✅ Webhook found ${webhookHires.length} hires`);
+    } catch (error) {
+      console.warn(`⚠️ Webhook failed for ${company.name}:`, error);
+    }
+
+    // STEP 3: Custom Search (fallback)
+    if (hires.length === 0) {
+      try {
+        console.log(`🔍 Step 3: Custom Search fallback for ${company.name}`);
+        const linkedinHires = await this.searchLinkedInHires(company);
+        hires.push(...linkedinHires);
+        console.log(`✅ Custom Search found ${linkedinHires.length} hires`);
+      } catch (error) {
+        console.warn(`⚠️ Custom Search failed for ${company.name}:`, error);
+      }
+    }
 
     try {
-      // Search LinkedIn for hire announcements
-      const linkedinHires = await this.searchLinkedInHires(company);
-      hires.push(...linkedinHires);
 
       // Search Twitter for hire announcements  
       const twitterHires = await this.searchTwitterHires(company);
@@ -53,9 +79,9 @@ export class ProfessionalHireTracker {
 
   private async searchLinkedInHires(company: Company): Promise<InsertNewHire[]> {
     const queries = [
-      `"${company.name}" "pleased to announce" OR "excited to welcome" OR "thrilled to welcome" site:linkedin.com`,
-      `"${company.name}" "joined our team" OR "new team member" OR "welcome to the team" site:linkedin.com`,
-      `"${company.name}" "has joined" OR "appointed as" OR "named as" site:linkedin.com`
+      `"${company.name}" "pleased to announce" "joined" OR "welcome" site:linkedin.com/posts`,
+      `"${company.name}" "excited to welcome" "new" OR "team" site:linkedin.com/feed`,
+      `"${company.name}" "thrilled to announce" "hired" OR "appointed" site:linkedin.com/company`
     ];
 
     const hires: InsertNewHire[] = [];
@@ -398,6 +424,64 @@ export class ProfessionalHireTracker {
     return highConfidenceIndicators.some(indicator => 
       text.toLowerCase().includes(indicator)
     );
+  }
+
+  // STEP 1: LinkedIn Official API
+  private async getLinkedInAPIHires(company: Company): Promise<InsertNewHire[]> {
+    if (!this.linkedinAccessToken) return [];
+
+    const orgId = this.extractOrgId(company.linkedinUrl);
+    if (!orgId) return [];
+
+    try {
+      const postsUrl = `https://api.linkedin.com/rest/ugcPosts?q=authors&authors=List(urn:li:organization:${orgId})&sortBy=LAST_MODIFIED&count=50`;
+      
+      const response = await fetch(postsUrl, {
+        headers: {
+          'Authorization': `Bearer ${this.linkedinAccessToken}`,
+          'X-Restli-Protocol-Version': '2.0.0',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`LinkedIn API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const posts = data.elements || [];
+      
+      const hires: InsertNewHire[] = [];
+      for (const post of posts) {
+        const text = post.specificContent?.['com.linkedin.ugc.ShareContent']?.shareCommentary?.text || '';
+        if (text) {
+          const hire = this.extractLinkedInHire(text, company);
+          if (hire) hires.push(hire);
+        }
+      }
+
+      return hires;
+    } catch (error) {
+      console.error(`LinkedIn API error for ${company.name}:`, error);
+      return [];
+    }
+  }
+
+  // STEP 2: Webhook Data
+  private async getWebhookHires(company: Company): Promise<InsertNewHire[]> {
+    try {
+      // This would check database for recent webhook data
+      // For now, return empty array
+      return [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  private extractOrgId(linkedinUrl?: string): string | null {
+    if (!linkedinUrl) return null;
+    const match = linkedinUrl.match(/company\/(\d+)/);
+    return match ? match[1] : null;
   }
 
   private async logToDatabase(level: string, service: string, message: string): Promise<void> {
