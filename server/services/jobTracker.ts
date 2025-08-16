@@ -317,11 +317,11 @@ export class JobTrackerService {
             console.log(hireMessage);
             await this.logToDatabase('info', 'job_tracker', hireMessage);
             
-            // Google Talent API professional tracking
-            const { GoogleTalentAPIService } = await import('./googleTalentAPI');
-            const googleTracker = new GoogleTalentAPIService();
+            // Professional hire tracking
+            const { ProfessionalHireTracker } = await import('./professionalHireTracker');
+            const hireTracker = new ProfessionalHireTracker();
             
-            const hires = await googleTracker.trackCompanyHires(company);
+            const hires = await hireTracker.trackCompanyHires(company);
             const foundMessage = `🚀 LinkedIn-only tracker found ${hires.length} professional hires`;
             console.log(foundMessage);
             await this.logToDatabase('info', 'job_tracker', foundMessage);
@@ -406,12 +406,12 @@ export class JobTrackerService {
   private async scrapeCompanyJobs(company: Company): Promise<InsertJobPosting[]> {
     const jobs: InsertJobPosting[] = [];
     
-    // Google Talent API job tracking
+    // Professional job tracking
     try {
-      const { GoogleTalentAPIService } = await import('./googleTalentAPI');
-      const googleTracker = new GoogleTalentAPIService();
-      const googleJobs = await googleTracker.trackCompanyJobs(company);
-      jobs.push(...googleJobs);
+      const { ProfessionalJobTracker } = await import('./professionalJobTracker');
+      const jobTracker = new ProfessionalJobTracker();
+      const trackedJobs = await jobTracker.trackCompanyJobs(company);
+      jobs.push(...trackedJobs);
         
         const apiMessage = `✅ LinkedIn-only API found ${linkedinJobs.length} jobs for ${company.name}`;
         console.log(apiMessage);
