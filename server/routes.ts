@@ -487,23 +487,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Settings endpoints
   app.get('/api/settings', async (req, res) => {
     try {
-      const settings = {
-        jobCheckInterval: process.env.JOB_POSTING_CHECK_INTERVAL || '60',
-        hireCheckInterval: process.env.NEW_HIRE_CHECK_INTERVAL || '15',
-        analyticsInterval: process.env.TRACKING_INTERVAL_MINUTES || '15',
-        slackEnabled: !!process.env.SLACK_BOT_TOKEN,
-        emailEnabled: !!process.env.GMAIL_USER,
-        maxRetries: process.env.MAX_RETRIES || '3',
-        requestTimeout: process.env.REQUEST_TIMEOUT || '30000',
-        maxConcurrent: process.env.MAX_CONCURRENT_REQUESTS || '5',
-        stealthMode: process.env.USE_STEALTH_MODE === 'true',
-        minDelay: process.env.MIN_DELAY_MS || '2000',
-        maxDelay: process.env.MAX_DELAY_MS || '8000',
-        linkedinEmail: process.env.LINKEDIN_EMAIL || '',
-        slackChannel: process.env.SLACK_CHANNEL || '#job-alerts',
-        emailRecipients: process.env.EMAIL_RECIPIENTS || '',
-        googleSheetsId: process.env.GOOGLE_SHEETS_ID || '',
-      };
+      const { EnvironmentService } = await import('./services/environmentService');
+      const envService = new EnvironmentService();
+      
+      const envVars = await envService.getEnvironmentVariables();
+      const schema = envService.getSettingsSchema();
+      
+      const settings: Record<string, any> = {};
+      
+      for (const [key, config] of Object.entries(schema)) {
+        settings[key] = {
+          value: envVars[key] || config.default || '',
+          ...config
+        };
+      }
+      
       res.json(settings);
     } catch (error: any) {
       console.error('Error fetching settings:', error);
@@ -515,23 +513,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const settings = req.body;
       
-      // Update environment variables (in memory)
-      process.env.JOB_POSTING_CHECK_INTERVAL = settings.jobCheckInterval;
-      process.env.NEW_HIRE_CHECK_INTERVAL = settings.hireCheckInterval;
-      process.env.TRACKING_INTERVAL_MINUTES = settings.analyticsInterval;
-      process.env.MAX_RETRIES = settings.maxRetries;
-      process.env.REQUEST_TIMEOUT = settings.requestTimeout;
-      process.env.MAX_CONCURRENT_REQUESTS = settings.maxConcurrent;
-      process.env.USE_STEALTH_MODE = settings.stealthMode.toString();
-      process.env.MIN_DELAY_MS = settings.minDelay;
-      process.env.MAX_DELAY_MS = settings.maxDelay;
-      process.env.LINKEDIN_EMAIL = settings.linkedinEmail;
-      process.env.SLACK_CHANNEL = settings.slackChannel;
-      process.env.EMAIL_RECIPIENTS = settings.emailRecipients;
-      process.env.GOOGLE_SHEETS_ID = settings.googleSheetsId;
+      const { EnvironmentService } = await import('./services/environmentService');
+      const envService = new EnvironmentService();
       
-      console.log('✅ Settings updated successfully');
-      res.json({ success: true, message: 'Settings updated successfully' });
+      // Prepare environment variables for update
+      const envUpdates: Record<string, string> = {};
+      
+      for (const [key, value] of Object.entries(settings)) {
+        if (typeof value === 'object' && value !== null && 'value' in value) {
+          envUpdates[key] = (value as any).value;
+        } else {
+          envUpdates[key] = String(value);
+        }
+      }
+      
+      // Update .env file and process.env
+      const success = await envService.updateMultipleEnvironmentVariables(envUpdates);
+      
+      if (success) {
+        console.log('✅ Settings updated successfully in .env file');
+        res.json({ success: true, message: 'Settings updated successfully and saved to .env file' });
+      } else {
+        res.status(500).json({ success: false, error: 'Failed to update .env file' });
+      }
     } catch (error: any) {
       console.error('Error updating settings:', error);
       res.status(500).json({ error: 'Failed to update settings' });

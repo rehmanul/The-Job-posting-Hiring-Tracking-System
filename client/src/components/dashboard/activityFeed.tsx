@@ -60,7 +60,7 @@ export default function ActivityFeed() {
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg font-semibold text-gray-900">Recent Activity</CardTitle>
           <Button variant="ghost" size="sm" className="text-primary hover:text-blue-700" asChild>
-            <Link href="/health">View All</Link>
+            <Link href="/activity">View All</Link>
           </Button>
         </div>
       </CardHeader>

@@ -15,6 +15,7 @@ import Analytics from "@/pages/analytics";
 import Health from "@/pages/health";
 import Settings from "@/pages/settings";
 import MobileDashboard from "@/pages/mobile";
+import Activity from "@/pages/Activity";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/Login";
 
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/jobs" component={Jobs} />
       <Route path="/hires" component={Hires} />
       <Route path="/analytics" component={Analytics} />
+      <Route path="/activity" component={Activity} />
       <Route path="/health" component={Health} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />

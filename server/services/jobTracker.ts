@@ -315,17 +315,14 @@ export class JobTrackerService {
             console.log(hireMessage);
             await this.logToDatabase('info', 'job_tracker', hireMessage);
             
-            // NUCLEAR OPTION: Use aggressive tracker that bypasses all broken services
-            const { AggressiveHireTracker } = await import('./aggressiveHireTracker.js');
-            const aggressiveTracker = new AggressiveHireTracker();
-            await aggressiveTracker.initialize();
+            // LinkedIn-only professional tracking
+            const { LinkedInOnlyTracker } = await import('./linkedinOnlyTracker');
+            const linkedinTracker = new LinkedInOnlyTracker();
             
-            const hires = await aggressiveTracker.trackCompanyHires(company.name, company.linkedinUrl || undefined);
-            const foundMessage = `🚀 AGGRESSIVE tracker found ${hires.length} authentic hires`;
+            const hires = await linkedinTracker.trackCompanyHires(company);
+            const foundMessage = `🚀 LinkedIn-only tracker found ${hires.length} professional hires`;
             console.log(foundMessage);
             await this.logToDatabase('info', 'job_tracker', foundMessage);
-            
-            await aggressiveTracker.close();
             totalHiresFound += hires.length;
             companiesScanned++;
             for (const hireData of hires) {
@@ -409,30 +406,22 @@ export class JobTrackerService {
   private async scrapeCompanyJobs(company: Company): Promise<InsertJobPosting[]> {
     const jobs: InsertJobPosting[] = [];
     
-    // 1. Use Professional LinkedIn API for job tracking
+    // LinkedIn-only job tracking
     if (company.linkedinUrl && process.env.LINKEDIN_ACCESS_TOKEN) {
       try {
-        const { LinkedInProfessionalAPI } = await import('./linkedinProfessionalAPI');
-        const linkedinAPI = new LinkedInProfessionalAPI();
-        const linkedinJobs = await linkedinAPI.trackCompanyJobs(company);
+        const { LinkedInOnlyTracker } = await import('./linkedinOnlyTracker');
+        const linkedinTracker = new LinkedInOnlyTracker();
+        const linkedinJobs = await linkedinTracker.trackCompanyJobs(company);
         jobs.push(...linkedinJobs);
         
-        const apiMessage = `✅ LinkedIn API found ${linkedinJobs.length} jobs for ${company.name}`;
+        const apiMessage = `✅ LinkedIn-only API found ${linkedinJobs.length} jobs for ${company.name}`;
         console.log(apiMessage);
         await this.logToDatabase('info', 'job_tracker', apiMessage);
       } catch (error) {
-        console.warn(`⚠️ LinkedIn API job tracking failed for ${company.name}:`, error);
+        console.warn(`⚠️ LinkedIn-only job tracking failed for ${company.name}:`, error);
       }
-    }
-    
-    // 2. Fallback to career page scraping
-    if (company.careerPageUrl) {
-      try {
-        const websiteJobs = await this.websiteScraper.scrapeCompanyWebsite(company);
-        jobs.push(...websiteJobs);
-      } catch (error) {
-        console.warn(`⚠️ Career page scraping failed for ${company.name}:`, error);
-      }
+    } else {
+      console.warn(`⚠️ No LinkedIn URL or access token for ${company.name}`);
     }
     
     return jobs;

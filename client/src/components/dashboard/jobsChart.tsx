@@ -5,8 +5,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Lege
 
 export default function JobsChart() {
   const { data: analytics } = useQuery({
-    queryKey: ["/api/analytics"],
-    queryParams: { days: 7 }
+    queryKey: ["/api/analytics?days=7"]
   });
 
   // Transform analytics data for chart
