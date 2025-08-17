@@ -411,18 +411,18 @@ export class JobTrackerService {
   private async scrapeCompanyJobs(company: Company): Promise<InsertJobPosting[]> {
     const jobs: InsertJobPosting[] = [];
     
-    // Working job tracking: Uses Google Custom Search + Gemini AI for real jobs
+    // BACK TO ORIGINAL: Use proper job scraping instead of garbage Custom Search
     try {
-      const { WorkingJobTracker } = await import('./workingJobTracker');
-      const jobTracker = new WorkingJobTracker();
+      const { SequentialJobTracker } = await import('./sequentialJobTracker');
+      const jobTracker = new SequentialJobTracker();
       const trackedJobs = await jobTracker.trackCompanyJobs(company);
       jobs.push(...trackedJobs);
         
-      const apiMessage = `✅ Working job tracker found ${trackedJobs.length} REAL JOBS for ${company.name}`;
+      const apiMessage = `✅ Original job tracker found ${trackedJobs.length} QUALITY JOBS for ${company.name}`;
       console.log(apiMessage);
       await this.logToDatabase('info', 'job_tracker', apiMessage);
     } catch (error) {
-      console.warn(`⚠️ Working job tracking failed for ${company.name}:`, error);
+      console.warn(`⚠️ Original job tracking failed for ${company.name}:`, error);
     }
     
     return jobs;
