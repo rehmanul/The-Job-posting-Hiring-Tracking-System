@@ -379,6 +379,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/system/stop-tracking", async (req, res) => {
+    try {
+      if (schedulerService) {
+        await schedulerService.stop();
+      }
+      
+      res.json({ 
+        success: true, 
+        message: "Tracking stopped successfully"
+      });
+    } catch (error: any) {
+      console.error("Error stopping tracking:", error);
+      res.status(500).json({ error: "Failed to stop tracking" });
+    }
+  });
+
   const linkedinAuth = new LinkedInOAuth();
   const linkedinWebhook = new LinkedInWebhookService();
   const webhookHandler = WebhookHandler.getInstance();
@@ -467,6 +483,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error getting system status:", error);
       res.status(500).json({ error: "Failed to get system status" });
+    }
+  });
+
+  app.get("/api/google-talent/test", async (req, res) => {
+    try {
+      const apiKey = process.env.GOOGLE_CLOUD_TALENT_API_KEY;
+      const customSearchKey = process.env.GOOGLE_CUSTOM_SEARCH_API_KEY;
+      const geminiKey = process.env.GEMINI_API_KEY;
+      
+      // Test Google Custom Search API (which we actually use)
+      let customSearchWorking = false;
+      if (customSearchKey) {
+        try {
+          const testUrl = `https://www.googleapis.com/customsearch/v1?key=${customSearchKey}&cx=${process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID}&q=test&num=1`;
+          const response = await fetch(testUrl);
+          customSearchWorking = response.ok;
+        } catch (e) {
+          customSearchWorking = false;
+        }
+      }
+      
+      res.json({ 
+        googleTalentAPI: {
+          configured: !!apiKey,
+          apiKey: apiKey ? apiKey.substring(0, 10) + '...' : 'missing'
+        },
+        googleCustomSearch: {
+          configured: !!customSearchKey,
+          working: customSearchWorking,
+          apiKey: customSearchKey ? customSearchKey.substring(0, 10) + '...' : 'missing'
+        },
+        geminiAPI: {
+          configured: !!geminiKey,
+          apiKey: geminiKey ? geminiKey.substring(0, 10) + '...' : 'missing'
+        },
+        recommendation: customSearchWorking ? 'Google Custom Search is working - system will find real names' : 'APIs not properly configured'
+      });
+    } catch (error: any) {
+      res.json({ connected: false, error: error.message });
     }
   });
 

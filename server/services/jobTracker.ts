@@ -323,12 +323,12 @@ export class JobTrackerService {
             console.log(hireMessage);
             await this.logToDatabase('info', 'job_tracker', hireMessage);
             
-            // Sequential hire tracking: LinkedIn API >> Webhook >> Custom Search
-            const { SequentialHireTracker } = await import('./sequentialHireTracker');
-            const hireTracker = new SequentialHireTracker();
+            // Working hire tracker: Uses Google Custom Search + Gemini AI for real names
+            const { WorkingHireTracker } = await import('./workingHireTracker');
+            const hireTracker = new WorkingHireTracker();
             
             const hires = await hireTracker.trackCompanyHires(company);
-            const foundMessage = `🚀 LinkedIn-only tracker found ${hires.length} professional hires`;
+            const foundMessage = `🚀 Working tracker found ${hires.length} REAL NAMES using Custom Search + AI`;
             console.log(foundMessage);
             await this.logToDatabase('info', 'job_tracker', foundMessage);
             // Validate and deduplicate hires before processing
@@ -411,18 +411,18 @@ export class JobTrackerService {
   private async scrapeCompanyJobs(company: Company): Promise<InsertJobPosting[]> {
     const jobs: InsertJobPosting[] = [];
     
-    // Sequential job tracking: LinkedIn API >> Webhook >> Google Talent API >> Custom Search
+    // Working job tracking: Uses Google Custom Search + Gemini AI for real jobs
     try {
-      const { SequentialJobTracker } = await import('./sequentialJobTracker');
-      const jobTracker = new SequentialJobTracker();
+      const { WorkingJobTracker } = await import('./workingJobTracker');
+      const jobTracker = new WorkingJobTracker();
       const trackedJobs = await jobTracker.trackCompanyJobs(company);
       jobs.push(...trackedJobs);
         
-      const apiMessage = `✅ Professional tracker found ${trackedJobs.length} jobs for ${company.name}`;
+      const apiMessage = `✅ Working job tracker found ${trackedJobs.length} REAL JOBS for ${company.name}`;
       console.log(apiMessage);
       await this.logToDatabase('info', 'job_tracker', apiMessage);
     } catch (error) {
-      console.warn(`⚠️ Professional job tracking failed for ${company.name}:`, error);
+      console.warn(`⚠️ Working job tracking failed for ${company.name}:`, error);
     }
     
     return jobs;
