@@ -94,11 +94,20 @@ export class FixedHireTracker {
       }
     }
     
-    // FIXED: Extract position from "as [position]" pattern
+    // FIXED: Better position extraction patterns for actual search results
     const positionPatterns = [
-      /as\s+(?:a\s+)?([A-Za-z\s]+?)(?:\.|,|$|\s+The)/i,
-      /joining.*as\s+(?:a\s+)?([A-Za-z\s]+)/i,
-      /appointed\s+as\s+(?:a\s+)?([A-Za-z\s]+)/i
+      // "VIP Customer Account Advisor" from "...position ... VIP Customer Account Adviso..."
+      /position.*?([A-Z][A-Za-z\s]+(?:Advisor|Manager|Executive|Director|Lead|Specialist|Analyst|Officer|Engineer|Developer))/i,
+      // "as [position]" pattern
+      /as\s+(?:a\s+)?([A-Z][A-Za-z\s]+?)(?:\.|,|$|\s+The)/i,
+      // "joining as [position]"
+      /joining.*as\s+(?:a\s+)?([A-Z][A-Za-z\s]+)/i,
+      // "appointed as [position]"
+      /appointed\s+as\s+(?:a\s+)?([A-Z][A-Za-z\s]+)/i,
+      // Extract from title like "Alexandra Fletcher - VIP Customer Account Advisor"
+      /-\s+([A-Z][A-Za-z\s]+(?:Advisor|Manager|Executive|Director|Lead|Specialist|Analyst|Officer|Engineer|Developer))/i,
+      // "accepted a position ... [TITLE]" pattern
+      /accepted\s+a\s+position.*?([A-Z][A-Za-z\s]+(?:Advisor|Manager|Executive|Director|Lead|Specialist|Analyst|Officer|Engineer|Developer))/i
     ];
     
     for (const pattern of positionPatterns) {
@@ -115,6 +124,9 @@ export class FixedHireTracker {
       const cleanName = this.cleanPersonName(extractedName);
       const cleanPos = this.cleanPosition(extractedPosition);
       
+      console.log(`🔍 VALIDATION: Name="${cleanName}" Position="${cleanPos}"`);
+      console.log(`🔍 Name valid: ${this.validatePersonName(cleanName)}, Position valid: ${this.validatePosition(cleanPos)}`);
+      
       if (this.validatePersonName(cleanName) && this.validatePosition(cleanPos)) {
         console.log(`✅ VALID HIRE: ${cleanName} as ${cleanPos}`);
         return {
@@ -127,6 +139,8 @@ export class FixedHireTracker {
           foundDate: new Date(),
           verified: true
         };
+      } else {
+        console.log(`❌ REJECTED: ${cleanName} as ${cleanPos}`);
       }
     }
     
@@ -249,16 +263,24 @@ Example: {"personName": "Andrew Hernandez", "position": "Senior Marketing Execut
   private validatePosition(position: string): boolean {
     if (!position || position.length < 3) return false;
     
-    // Must contain business keywords
+    // FIXED: More comprehensive business keywords including the ones we're seeing
     const businessKeywords = [
-      'executive', 'manager', 'director', 'officer', 'lead', 'senior', 'principal', 
+      'advisor', 'manager', 'director', 'officer', 'lead', 'senior', 'principal', 
       'analyst', 'specialist', 'coordinator', 'engineer', 'developer', 'designer', 
-      'consultant', 'advisor', 'associate', 'assistant', 'marketing', 'sales',
-      'operations', 'finance', 'hr', 'human resources', 'product', 'strategy'
+      'consultant', 'associate', 'assistant', 'executive', 'supervisor', 'head',
+      'account', 'customer', 'vip', 'team', 'business', 'product', 'marketing', 
+      'sales', 'operations', 'finance', 'hr', 'human resources', 'strategy',
+      'research', 'development', 'technical', 'support', 'service', 'quality',
+      'compliance', 'risk', 'audit', 'legal', 'procurement', 'sourcing'
     ];
     
     const posLower = position.toLowerCase();
-    return businessKeywords.some(keyword => posLower.includes(keyword));
+    const hasKeyword = businessKeywords.some(keyword => posLower.includes(keyword));
+    
+    // FIXED: Also accept positions that look professional (Title Case)
+    const looksLikeTitle = /^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*$/.test(position.trim());
+    
+    return hasKeyword || looksLikeTitle;
   }
 
   private validateAndDeduplicateHires(hires: InsertNewHire[]): InsertNewHire[] {
