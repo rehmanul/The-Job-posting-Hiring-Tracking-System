@@ -323,12 +323,12 @@ export class JobTrackerService {
             console.log(hireMessage);
             await this.logToDatabase('info', 'job_tracker', hireMessage);
             
-            // Working hire tracker: Uses Google Custom Search + Gemini AI for real names
-            const { WorkingHireTracker } = await import('./workingHireTracker');
-            const hireTracker = new WorkingHireTracker();
+            // FIXED hire tracker: Properly extracts names from LinkedIn URLs and search results
+            const { FixedHireTracker } = await import('./fixedHireTracker');
+            const hireTracker = new FixedHireTracker();
             
             const hires = await hireTracker.trackCompanyHires(company);
-            const foundMessage = `🚀 Working tracker found ${hires.length} REAL NAMES using Custom Search + AI`;
+            const foundMessage = `🚀 FIXED tracker found ${hires.length} REAL NAMES (Andrew Hernandez style extraction)`;
             console.log(foundMessage);
             await this.logToDatabase('info', 'job_tracker', foundMessage);
             // Validate and deduplicate hires before processing
