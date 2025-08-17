@@ -140,15 +140,26 @@ export class FixedHireTracker {
       
       if (this.validatePersonName(cleanName) && this.validatePosition(cleanPos)) {
         console.log(`✅ VALID HIRE: ${cleanName} as ${cleanPos}`);
+        
+        // SMART LOGIC: Detect promotions vs new hires
+        let hireType = 'New Hire';
+        let adjustedPreviousCompany = previousCompany;
+        
+        if (previousCompany && previousCompany.toLowerCase() === company.name.toLowerCase()) {
+          hireType = 'Promotion';
+          adjustedPreviousCompany = null; // Don't show same company as previous
+          console.log(`🚀 PROMOTION DETECTED: ${cleanName} promoted to ${cleanPos} at ${company.name}`);
+        }
+        
         return {
           personName: cleanName,
           company: company.name,
           position: cleanPos,
           startDate: new Date(),
           linkedinProfile: linkedinProfile,
-          previousCompany: previousCompany,
-          source: 'Fixed Extraction + Custom Search',
-          confidenceScore: '95',
+          previousCompany: adjustedPreviousCompany,
+          source: `${hireType} - Fixed Extraction + Custom Search`,
+          confidenceScore: hireType === 'Promotion' ? '98' : '95',
           foundDate: new Date(),
           verified: true
         };
