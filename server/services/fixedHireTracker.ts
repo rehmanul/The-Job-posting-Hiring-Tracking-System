@@ -119,6 +119,13 @@ export class FixedHireTracker {
       }
     }
     
+    // BOSS REQUIREMENT: Extract LinkedIn profile and previous company
+    const linkedinProfile = this.extractLinkedInProfile(item.link, fullText);
+    const previousCompany = this.extractPreviousCompany(fullText, extractedName);
+    
+    console.log(`🔗 LinkedIn Profile: ${linkedinProfile}`);
+    console.log(`🏢 Previous Company: ${previousCompany}`);
+    
     // If we found both name and position, validate and return
     if (extractedName && extractedPosition) {
       const cleanName = this.cleanPersonName(extractedName);
@@ -134,6 +141,8 @@ export class FixedHireTracker {
           company: company.name,
           position: cleanPos,
           startDate: new Date(),
+          linkedinProfile: linkedinProfile,
+          previousCompany: previousCompany,
           source: 'Fixed Extraction + Custom Search',
           confidenceScore: '95',
           foundDate: new Date(),
@@ -192,11 +201,16 @@ Example: {"personName": "Andrew Hernandez", "position": "Senior Marketing Execut
       
       if (extracted.personName && extracted.position && this.validatePersonName(extracted.personName)) {
         console.log(`🤖 Gemini extracted: ${extracted.personName} as ${extracted.position}`);
+        const linkedinProfile = this.extractLinkedInProfile(item.link, fullText);
+        const previousCompany = this.extractPreviousCompany(fullText, extracted.personName);
+        
         return {
           personName: extracted.personName,
           company: company.name,
           position: extracted.position,
           startDate: new Date(),
+          linkedinProfile: linkedinProfile,
+          previousCompany: previousCompany,
           source: 'Gemini AI + Custom Search',
           confidenceScore: '98',
           foundDate: new Date(),
@@ -308,6 +322,77 @@ Example: {"personName": "Andrew Hernandez", "position": "Senior Marketing Execut
     console.log(`🎯 Validated ${validHires.length} hires, deduplicated to ${uniqueHires.length} unique`);
     
     return uniqueHires;
+  }
+
+  private extractLinkedInProfile(itemLink: string, text: string): string | null {
+    // BOSS REQUIREMENT: Extract LinkedIn profile URL
+    
+    // Method 1: From the search result link itself
+    if (itemLink && itemLink.includes('linkedin.com/posts/')) {
+      const match = itemLink.match(/linkedin\.com\/posts\/([a-z]+-[a-z]+-[0-9]+)/i);
+      if (match) {
+        const profileSlug = match[1];
+        return `https://linkedin.com/in/${profileSlug}`;
+      }
+    }
+    
+    // Method 2: Look for profile links in text
+    const profileMatch = text.match(/linkedin\.com\/in\/([\w-]+)/i);
+    if (profileMatch) {
+      return `https://linkedin.com/in/${profileMatch[1]}`;
+    }
+    
+    // Method 3: Construct from name if we have it
+    const nameMatch = itemLink.match(/linkedin\.com\/posts\/([a-z]+-[a-z]+-[0-9]+)/i);
+    if (nameMatch) {
+      const parts = nameMatch[1].split('-');
+      if (parts.length >= 2) {
+        return `https://linkedin.com/in/${parts[0]}-${parts[1]}-${parts[2] || ''}`;
+      }
+    }
+    
+    return null;
+  }
+  
+  private extractPreviousCompany(text: string, personName: string): string | null {
+    // BOSS REQUIREMENT: Extract previous company from hire announcements
+    
+    const patterns = [
+      // "John from Microsoft joins us"
+      new RegExp(`${personName}.*?from\\s+([A-Z][\\w\\s&]+?)(?:\\s+(?:joins|as|to)|\\.|,|$)`, 'i'),
+      
+      // "Previously at Microsoft"
+      /previously\s+at\s+([A-Z][\w\s&]+?)(?:\s+as|\.|,|$)/i,
+      
+      // "Coming from Microsoft"
+      /coming\s+from\s+([A-Z][\w\s&]+?)(?:\s+as|\.|,|$)/i,
+      
+      // "Former Microsoft employee"
+      /former\s+([A-Z][\w\s&]+?)\s+(?:employee|executive|manager)/i,
+      
+      // "Leaving Microsoft to join"
+      /leaving\s+([A-Z][\w\s&]+?)\s+to\s+join/i,
+      
+      // "After X years at Microsoft"
+      /after\s+\d+\s+years?\s+at\s+([A-Z][\w\s&]+?)(?:\s|,|\.|$)/i,
+      
+      // "Experience: Microsoft" pattern
+      /experience:?\s+([A-Z][\w\s&]+?)(?:\s+·|\s+\||\.|,|$)/i
+    ];
+    
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        const company = match[1].trim();
+        // Validate it's a reasonable company name
+        if (company.length > 2 && company.length < 50 && !company.toLowerCase().includes('university')) {
+          console.log(`🏢 Found previous company: ${company}`);
+          return company;
+        }
+      }
+    }
+    
+    return null;
   }
 
   private async logToDatabase(level: string, service: string, message: string): Promise<void> {
