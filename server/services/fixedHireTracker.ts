@@ -107,7 +107,11 @@ export class FixedHireTracker {
       // Extract from title like "Alexandra Fletcher - VIP Customer Account Advisor"
       /-\s+([A-Z][A-Za-z\s]+(?:Advisor|Manager|Executive|Director|Lead|Specialist|Analyst|Officer|Engineer|Developer))/i,
       // "accepted a position ... [TITLE]" pattern
-      /accepted\s+a\s+position.*?([A-Z][A-Za-z\s]+(?:Advisor|Manager|Executive|Director|Lead|Specialist|Analyst|Officer|Engineer|Developer))/i
+      /accepted\s+a\s+position.*?([A-Z][A-Za-z\s]+(?:Advisor|Manager|Executive|Director|Lead|Specialist|Analyst|Officer|Engineer|Developer))/i,
+      // "starting at [company]" pattern - extract from context
+      /starting\s+at\s+\w+.*?([A-Z][A-Za-z\s]+(?:Recruitment|Careers|Team|Operations|Marketing|Sales))/i,
+      // "1 month since starting" - look for role in title
+      /marks\s+\d+\s+month.*?starting.*?([A-Z][A-Za-z\s]+(?:Recruitment|Careers|Team|Operations|Marketing|Sales))/i
     ];
     
     for (const pattern of positionPatterns) {
@@ -384,8 +388,15 @@ Example: {"personName": "Andrew Hernandez", "position": "Senior Marketing Execut
       const match = text.match(pattern);
       if (match && match[1]) {
         const company = match[1].trim();
-        // Validate it's a reasonable company name
-        if (company.length > 2 && company.length < 50 && !company.toLowerCase().includes('university')) {
+        // FIXED: Don't return same company or garbage
+        const companyLower = company.toLowerCase();
+        const currentCompanyLower = company.name.toLowerCase();
+        
+        if (company.length > 2 && company.length < 50 && 
+            !companyLower.includes('university') &&
+            !companyLower.includes('our') &&
+            !companyLower.includes('operations') &&
+            companyLower !== currentCompanyLower) {
           console.log(`🏢 Found previous company: ${company}`);
           return company;
         }
