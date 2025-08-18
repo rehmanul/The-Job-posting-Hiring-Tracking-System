@@ -4,9 +4,7 @@ import { createServer, type Server } from "http";
 import { z } from "zod";
 import crypto from "crypto";
 import { storage } from "./storage";
-import { SchedulerService } from "./scheduler";
-import { JobTrackerService } from "./services/jobTracker";
-import { ScheduledTracker } from "./services/scheduledTracker";
+import { FinalJobTracker } from "./services/finalJobTracker";
 
 import fs from "fs";
 import path from "path";
@@ -41,16 +39,19 @@ import { LinkedInOAuth } from "./services/linkedinAuth";
 import { LinkedInWebhookService } from "./services/linkedinWebhook";
 import { WebhookHandler } from "./services/webhookHandler";
 
-let schedulerService: SchedulerService | null = null;
-let enhancedTracker: any = null; // Professional tracker instance
+let finalTracker: FinalJobTracker | null = null;
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
 
-  // Initialize scheduler service but don't auto-start
-  schedulerService = new SchedulerService();
-  await schedulerService.initialize();
-  // Don't auto-start - wait for user to click Start Tracking
+  // Initialize final tracker
+  finalTracker = new FinalJobTracker();
+  await finalTracker.initialize();
+  
+  // Start complete workflow
+  await finalTracker.completeHireTracking();
+  await finalTracker.completeJobTracking();
+  await finalTracker.startScheduledTracking();
 
   // API endpoint to upload LinkedIn session cookies
   app.post("/api/linkedin/session-cookies", async (req: Request, res: Response) => {
@@ -422,18 +423,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.post("/webhook", async (req, res) => {
     try {
-      const signature = req.headers['x-li-signature'] as string;
-      const body = JSON.stringify(req.body);
+      console.log('LinkedIn webhook received for hire detection');
       
-      const { ProfessionalLinkedInWebhook } = await import('./services/professionalLinkedInWebhook');
-      const webhookHandler = new ProfessionalLinkedInWebhook();
+      if (finalTracker) {
+        await finalTracker.handleLinkedInWebhook(req.body);
+      }
       
-      await webhookHandler.handleNotification(body, signature);
-      res.status(200).send('OK');
+      res.status(200).json({ success: true });
       
     } catch (error) {
-      console.error('Professional webhook processing error:', error);
-      res.status(500).send('Error');
+      console.error('Webhook processing failed:', error);
+      res.status(500).json({ success: false });
     }
   });
   
