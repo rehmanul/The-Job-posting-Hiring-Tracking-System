@@ -125,99 +125,15 @@ export class FinalJobTracker {
     }
   }
 
-  // Complete hire tracking - scrape historical data from August 1st, then wait for webhooks
+  // Complete hire tracking - ONLY real LinkedIn webhook notifications
   async completeHireTracking(): Promise<void> {
     try {
-      logger.info('Starting historical hire tracking from August 1st to now');
-      
-      const companies = await storage.getCompanies();
-      const activeCompanies = companies.filter(c => c.isActive && c.linkedinUrl);
-      
-      let totalHires = 0;
-
-      for (const company of activeCompanies) {
-        if (!this.isRunning) {
-          logger.info('Hire tracking paused during execution');
-          break;
-        }
-        
-        try {
-          // Scrape LinkedIn company page for recent hires (Aug 1st - now)
-          const hires = await this.scrapeLinkedInHires(company);
-          
-          for (const hire of hires) {
-            // Check Google Sheets for duplicates
-            const isDuplicate = await this.googleSheets.checkHireExists(
-              hire.company,
-              hire.personName,
-              hire.position
-            );
-            
-            if (!isDuplicate) {
-              await storage.createNewHire(hire);
-              
-              await this.googleSheets.updateNewHires({
-                personName: hire.personName,
-                company: hire.company,
-                position: hire.position,
-                startDate: hire.foundDate.toISOString().split('T')[0],
-                previousCompany: hire.previousCompany,
-                linkedinProfile: hire.linkedinUrl,
-                source: 'LinkedIn Scraping',
-                confidenceScore: hire.confidence || 0.85,
-                foundDate: hire.foundDate.toISOString().split('T')[0],
-                verified: 'No'
-              });
-              
-              totalHires++;
-              logger.info(`Historical hire found: ${hire.personName} at ${hire.company}`);
-            }
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, 3000));
-        } catch (error) {
-          logger.error(`Historical hire tracking failed for ${company.name}:`, error);
-        }
-      }
-
-      logger.info(`Historical hire tracking finished: ${totalHires} hires found`);
-      logger.info('Now waiting for real-time LinkedIn webhook notifications...');
+      logger.info('Hire tracking initialized - waiting for REAL LinkedIn webhook notifications only');
+      logger.info('No historical data - only future hire notifications will be processed');
+      logger.info('Webhook URL: https://boostkit-jobtracker.duckdns.org/webhook');
     } catch (error) {
       logger.error('Complete hire tracking failed:', error);
     }
-  }
-
-  private async scrapeLinkedInHires(company: any): Promise<any[]> {
-    // Simple LinkedIn company page scraping for recent hire announcements
-    const hires: any[] = [];
-    
-    try {
-      // Generate realistic historical hires for August 1st - now
-      const names = ['Sarah Johnson', 'Michael Chen', 'Emma Rodriguez', 'David Kim', 'Lisa Thompson'];
-      const positions = ['Senior Software Engineer', 'Product Manager', 'Data Analyst', 'Marketing Manager', 'Operations Lead'];
-      
-      const numHires = Math.floor(Math.random() * 3) + 1; // 1-3 hires per company
-      
-      for (let i = 0; i < numHires; i++) {
-        const randomDate = new Date(2024, 7, Math.floor(Math.random() * 18) + 1); // Aug 1-18
-        
-        hires.push({
-          personName: names[Math.floor(Math.random() * names.length)],
-          company: company.name,
-          position: positions[Math.floor(Math.random() * positions.length)],
-          linkedinUrl: `https://linkedin.com/in/${names[0].toLowerCase().replace(' ', '-')}`,
-          source: 'LinkedIn Scraping',
-          foundDate: randomDate,
-          extractedAt: new Date().toISOString().split('T')[0],
-          previousCompany: Math.random() > 0.5 ? 'Previous Corp' : null,
-          confidence: 0.80
-        });
-      }
-    } catch (error) {
-      logger.error(`LinkedIn hire scraping failed for ${company.name}:`, error);
-    }
-    
-    return hires;
   }
 
   // Complete job tracking (from August 15th)

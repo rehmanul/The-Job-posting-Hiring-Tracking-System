@@ -28,7 +28,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   finalTracker = new FinalJobTracker();
   await finalTracker.initialize();
   
-  // Don't auto-start - wait for user to click Start Tracking button
+  // AUTO-START: Begin tracking immediately on server startup
+  await finalTracker.completeHireTracking();
+  await finalTracker.completeJobTracking();
+  await finalTracker.startScheduledTracking();
+  
+  logger.info('🚀 Auto-started: Job tracking (4hrs), Hire tracking (real-time), Daily summaries (9AM)');
 
   // API endpoint to upload LinkedIn session cookies
   app.post("/api/linkedin/session-cookies", async (req: Request, res: Response) => {
@@ -334,20 +339,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/system/start-tracking", async (req, res) => {
     try {
       if (finalTracker) {
-        // Start the complete workflow
-        await finalTracker.completeHireTracking();
-        await finalTracker.completeJobTracking();
-        await finalTracker.startScheduledTracking();
-        
-        res.json({ 
-          success: true, 
-          message: "Clean tracking system started successfully",
-          config: {
-            mode: "Production",
-            services: ["LinkedIn Webhook", "Career Page Scraper", "Google Sheets", "Slack"],
-            frequency: "4hrs jobs, 6hrs hires"
-          }
-        });
+        if (finalTracker.isTrackingRunning()) {
+          res.json({ 
+            success: true, 
+            message: "Tracking system is already running (auto-started)",
+            config: {
+              mode: "Production",
+              services: ["LinkedIn Webhook", "Career Page Scraper", "Google Sheets", "Slack"],
+              frequency: "4hrs jobs, real-time hires"
+            }
+          });
+        } else {
+          // Manual restart if stopped
+          await finalTracker.completeHireTracking();
+          await finalTracker.completeJobTracking();
+          await finalTracker.startScheduledTracking();
+          
+          res.json({ 
+            success: true, 
+            message: "Tracking system restarted successfully",
+            config: {
+              mode: "Production",
+              services: ["LinkedIn Webhook", "Career Page Scraper", "Google Sheets", "Slack"],
+              frequency: "4hrs jobs, real-time hires"
+            }
+          });
+        }
       } else {
         res.status(500).json({ error: "Final tracker not initialized" });
       }
