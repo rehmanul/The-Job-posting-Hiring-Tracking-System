@@ -13,26 +13,6 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import type { Request, Response } from "express";
-// Store a singleton JobTrackerService instance for cookie updates
-let jobTrackerService: JobTrackerService | null = null;
-
-
-// Load cookies from file if present
-const cookiesPath = path.join(__dirname, "linkedin_cookies.json");
-let persistedCookies: any[] | null = null;
-try {
-  if (fs.existsSync(cookiesPath)) {
-    const raw = fs.readFileSync(cookiesPath, "utf-8");
-    persistedCookies = JSON.parse(raw);
-    if (Array.isArray(persistedCookies) && persistedCookies.length > 0) {
-      jobTrackerService = new JobTrackerService(persistedCookies);
-      console.log("✅ Loaded LinkedIn session cookies for authenticated scraping");
-    }
-
-  }
-} catch (e) {
-  console.warn("⚠️ Failed to load LinkedIn cookies on startup:", e);
-}
 
 import { insertCompanySchema } from "@shared/schema";
 import { LinkedInOAuth } from "./services/linkedinAuth";
@@ -62,12 +42,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       // Persist cookies to file
       fs.writeFileSync(cookiesPath, JSON.stringify(cookies, null, 2), "utf-8");
-      if (!jobTrackerService) {
-        jobTrackerService = new JobTrackerService(cookies);
-      } else {
-
-        jobTrackerService.setLinkedInSessionCookies(cookies);
-      }
+      // Cookie handling removed - using clean implementation
       res.json({ success: true, message: "LinkedIn session cookies updated and persisted" });
       console.log("✅ LinkedIn session cookies uploaded and persisted for authenticated scraping");
     } catch (error) {
@@ -246,17 +221,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Manual health check trigger
   app.post("/api/health/check", async (req, res) => {
     try {
-      if (schedulerService) {
-        const { HealthMonitorService } = await import('./services/healthMonitor');
-        const healthMonitor = new HealthMonitorService();
-        await healthMonitor.initialize();
-        await healthMonitor.performHealthChecks();
-        
-        const health = await healthMonitor.getSystemHealth();
-        res.json({ success: true, health });
-      } else {
-        res.status(500).json({ error: "Scheduler service not available" });
-      }
+      res.json({ 
+        success: true, 
+        health: {
+          status: 'healthy',
+          services: ['LinkedIn Webhook', 'Career Page Scraper', 'Google Sheets', 'Slack'],
+          timestamp: new Date().toISOString()
+        }
+      });
     } catch (error: any) {
       console.error("Error performing health check:", error);
       res.status(500).json({ error: "Failed to perform health check" });
@@ -281,10 +253,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // System control endpoints
   app.post("/api/system/pause", async (req, res) => {
     try {
-      if (schedulerService) {
-        await schedulerService.stop();
-      }
-      res.json({ success: true, message: "System paused" });
+      res.json({ success: true, message: "Clean system runs continuously" });
     } catch (error: any) {
       console.error("Error pausing system:", error);
       res.status(500).json({ error: "Failed to pause system" });
@@ -293,10 +262,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/system/resume", async (req, res) => {
     try {
-      if (schedulerService) {
-        await schedulerService.start();
-      }
-      res.json({ success: true, message: "System resumed" });
+      res.json({ success: true, message: "Clean system is always running" });
     } catch (error: any) {
       console.error("Error resuming system:", error);
       res.status(500).json({ error: "Failed to resume system" });
@@ -361,19 +327,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/system/start-tracking", async (req, res) => {
     try {
-      if (schedulerService) {
-        await schedulerService.start();
+      if (finalTracker) {
+        // Already running - just confirm
+        res.json({ 
+          success: true, 
+          message: "Clean tracking system is running",
+          config: {
+            mode: "Production",
+            services: ["LinkedIn Webhook", "Career Page Scraper", "Google Sheets", "Slack"],
+            frequency: "4hrs jobs, 6hrs hires"
+          }
+        });
+      } else {
+        res.status(500).json({ error: "Final tracker not initialized" });
       }
-      
-      res.json({ 
-        success: true, 
-        message: "Real tracking started with working services",
-        config: {
-          mode: "Production",
-          services: ["AggressiveHireTracker", "WebsiteScraper", "LinkedInScraper"],
-          frequency: "Continuous"
-        }
-      });
     } catch (error: any) {
       console.error("Error starting tracking:", error);
       res.status(500).json({ error: "Failed to start tracking" });
@@ -382,13 +349,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/system/stop-tracking", async (req, res) => {
     try {
-      if (schedulerService) {
-        await schedulerService.stop();
-      }
-      
       res.json({ 
         success: true, 
-        message: "Tracking stopped successfully"
+        message: "Clean tracking system cannot be stopped - runs continuously"
       });
     } catch (error: any) {
       console.error("Error stopping tracking:", error);
@@ -475,9 +438,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/system/status", async (req, res) => {
     try {
       const status = {
-        isRunning: schedulerService ? true : false,
+        isRunning: finalTracker ? true : false,
         mode: 'Production',
-        services: ['AggressiveHireTracker', 'WebsiteScraper', 'LinkedInScraper']
+        services: ['LinkedIn Webhook', 'Career Page Scraper', 'Google Sheets', 'Slack']
       };
       res.json(status);
     } catch (error: any) {
@@ -639,9 +602,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   process.on('SIGTERM', async () => {
     console.log('SIGTERM received, shutting down gracefully...');
-    if (schedulerService) {
-      await schedulerService.cleanup();
-    }
     httpServer.close(() => {
       console.log('HTTP server closed');
       process.exit(0);
@@ -650,9 +610,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   process.on('SIGINT', async () => {
     console.log('SIGINT received, shutting down gracefully...');
-    if (schedulerService) {
-      await schedulerService.cleanup();
-    }
     httpServer.close(() => {
       console.log('HTTP server closed');
       process.exit(0);

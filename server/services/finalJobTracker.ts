@@ -22,7 +22,31 @@ export class FinalJobTracker {
 
   async initialize(): Promise<void> {
     await this.googleSheets.initialize();
+    
+    // Load companies from Google Sheets
+    await this.loadCompaniesFromGoogleSheets();
+    
     logger.info('Final Job Tracker initialized');
+  }
+
+  private async loadCompaniesFromGoogleSheets(): Promise<void> {
+    try {
+      // Use the working Google Sheets service from the original system
+      const { GoogleSheetsService } = await import('./googleSheets');
+      const googleSheetsService = new GoogleSheetsService();
+      await googleSheetsService.initialize();
+      
+      const companies = await googleSheetsService.getCompanies();
+      
+      if (companies && companies.length > 0) {
+        // Clear existing and sync new companies
+        await storage.clearSampleCompanies();
+        await storage.syncCompaniesFromGoogleSheets(companies);
+        logger.info(`Loaded ${companies.length} companies from Google Sheets`);
+      }
+    } catch (error) {
+      logger.error('Failed to load companies from Google Sheets:', error);
+    }
   }
 
   // LinkedIn webhook endpoint
@@ -79,51 +103,12 @@ export class FinalJobTracker {
     }
   }
 
-  // Complete hire tracking (from August 1st)
+  // Complete hire tracking - only real LinkedIn webhook data
   async completeHireTracking(): Promise<void> {
     try {
-      logger.info('Starting complete hire tracking from August 1st');
-      
-      const companies = await storage.getCompanies();
-      const activeCompanies = companies.filter(c => c.isActive);
-      
-      let totalHires = 0;
-      
-      for (const company of activeCompanies) {
-        try {
-          // Simulate hire detection for historical data
-          const mockHires = await this.generateHistoricalHires(company);
-          
-          for (const hire of mockHires) {
-            const hireKey = `${hire.personName}-${hire.company}`;
-            if (this.processedHires.has(hireKey)) continue;
-
-            await storage.createNewHire(hire);
-            this.processedHires.add(hireKey);
-
-            await this.googleSheets.updateNewHires({
-              personName: hire.personName,
-              company: hire.company,
-              position: hire.position,
-              startDate: hire.foundDate.toISOString().split('T')[0],
-              previousCompany: hire.previousCompany,
-              linkedinProfile: hire.linkedinUrl,
-              source: hire.source,
-              confidenceScore: hire.confidence || 0.85,
-              foundDate: hire.foundDate.toISOString().split('T')[0],
-              verified: 'No'
-            });
-
-            totalHires++;
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        } catch (error) {
-          logger.error(`Hire tracking failed for ${company.name}:`, error);
-        }
-      }
-
-      logger.info(`Complete hire tracking finished: ${totalHires} hires processed`);
+      logger.info('Hire tracking ready - waiting for real LinkedIn webhooks');
+      // No mock data - only process real LinkedIn webhook notifications
+      logger.info('Complete hire tracking finished: 0 mock hires (real data only)');
     } catch (error) {
       logger.error('Complete hire tracking failed:', error);
     }
@@ -143,36 +128,39 @@ export class FinalJobTracker {
         try {
           await this.jobScraper.scrapeCompanyJobs(company);
           
-          // Get newly added jobs
-          const jobs = await storage.getJobPostings();
-          const recentJobs = jobs.filter(j => 
+          // Get newly scraped jobs from storage
+          const allJobs = await storage.getJobPostings();
+          const newJobs = allJobs.filter(j => 
             j.company === company.name && 
             !this.processedJobs.has(`${j.jobTitle}-${j.company}`)
           );
-
-          for (const job of recentJobs) {
+          
+          // Process newly scraped jobs
+          for (const job of newJobs) {
             const jobKey = `${job.jobTitle}-${job.company}`;
             this.processedJobs.add(jobKey);
-
+            
+            // Update Google Sheets
             const now = new Date();
             await this.googleSheets.updateJobPostings({
               company: job.company,
               jobTitle: job.jobTitle,
-              location: job.location,
+              location: job.location || 'Not specified',
               department: 'General',
               date: now.toISOString().split('T')[0],
               time: now.toTimeString().split(' ')[0],
-              jobUrl: job.jobUrl,
+              jobUrl: job.url || '',
               confidenceScore: '0.85'
             });
 
+            // Send Slack notification
             await this.slackNotifier.sendJobNotification({
               company: job.company,
               jobTitle: job.jobTitle,
-              location: job.location,
+              location: job.location || 'Not specified',
               department: 'General',
               date: now.toISOString().split('T')[0],
-              jobUrl: job.jobUrl,
+              jobUrl: job.url || '',
               confidenceScore: 0.85
             });
 
@@ -216,23 +204,7 @@ export class FinalJobTracker {
     }, 60 * 1000);
   }
 
-  private async generateHistoricalHires(company: any): Promise<any[]> {
-    // Generate mock historical hires for demonstration
-    const names = ['John Smith', 'Sarah Johnson', 'Mike Wilson', 'Lisa Brown', 'David Chen'];
-    const positions = ['Senior Engineer', 'Data Analyst', 'Product Manager', 'Marketing Specialist', 'Operations Manager'];
-    
-    return names.slice(0, Math.floor(Math.random() * 3) + 1).map(name => ({
-      personName: name,
-      company: company.name,
-      position: positions[Math.floor(Math.random() * positions.length)],
-      linkedinUrl: `https://linkedin.com/in/${name.toLowerCase().replace(' ', '-')}`,
-      source: 'LinkedIn Webhook',
-      foundDate: new Date(2024, 7, Math.floor(Math.random() * 17) + 1), // August 1-17
-      extractedAt: new Date().toISOString().split('T')[0],
-      previousCompany: Math.random() > 0.5 ? 'Previous Corp' : null,
-      confidence: 0.85
-    }));
-  }
+
 
   private async extractHireFromWebhook(payload: any): Promise<any | null> {
     // Use existing hire webhook logic

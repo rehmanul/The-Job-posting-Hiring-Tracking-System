@@ -16,16 +16,35 @@ export class PythonJobScraper {
 
       browser = await puppeteer.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-images']
+        args: [
+          '--no-sandbox', 
+          '--disable-setuid-sandbox', 
+          '--disable-images',
+          '--ignore-certificate-errors',
+          '--ignore-ssl-errors',
+          '--ignore-certificate-errors-spki-list',
+          '--disable-web-security',
+          '--allow-running-insecure-content',
+          '--disable-features=VizDisplayCompositor',
+          '--max-redirect-count=5'
+        ]
       });
 
       const page = await browser.newPage();
       await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
       
-      await page.goto(company.careerPageUrl, { 
-        waitUntil: 'networkidle2',
-        timeout: 30000 
-      });
+      try {
+        await page.goto(company.careerPageUrl, { 
+          waitUntil: 'domcontentloaded',
+          timeout: 20000 
+        });
+      } catch (error) {
+        if (error.message.includes('ERR_TOO_MANY_REDIRECTS')) {
+          logger.warn(`Skipping ${company.name} due to redirect loops`);
+          return;
+        }
+        throw error;
+      }
 
       await new Promise(resolve => setTimeout(resolve, 3000));
 
@@ -61,10 +80,10 @@ export class PythonJobScraper {
               !skipKeywords.some(skip => text.toLowerCase().includes(skip))) {
             
             jobLinks.push({
-              title: text,
+              title: text.trim().replace(/\s+/g, ' '),
               url: href.startsWith('http') ? href : window.location.origin + href,
               location: 'Remote',
-              department: this.extractDepartment(text)
+              department: 'General'
             });
           }
         });
@@ -83,10 +102,10 @@ export class PythonJobScraper {
             const href = parentLink?.href || window.location.href;
             
             jobLinks.push({
-              title: text,
+              title: text.trim().replace(/\s+/g, ' '),
               url: href,
               location: 'Remote',
-              department: this.extractDepartment(text)
+              department: 'General'
             });
           }
         });
@@ -110,7 +129,7 @@ export class PythonJobScraper {
             jobTitle: jobData.title,
             company: company.name,
             location: jobData.location,
-            jobUrl: jobData.url,
+            url: jobData.url,
             source: 'Career Page Scraping',
             foundDate: new Date(),
             extractedAt: new Date().toISOString().split('T')[0]
@@ -156,8 +175,13 @@ export class PythonJobScraper {
       return false;
     }
     
-    // Check reasonable title length
-    if (job.title.length > 200 || job.title.split('\n').length > 2) {
+    // Check reasonable title length and clean formatting
+    if (job.title.length > 100 || job.title.split('\n').length > 1) {
+      return false;
+    }
+    
+    // Must be at least 10 characters for a real job title
+    if (job.title.length < 10) {
       return false;
     }
     
