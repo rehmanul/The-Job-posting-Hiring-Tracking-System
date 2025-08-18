@@ -7,6 +7,18 @@ export class MinimalHireWebhook {
       const hireData = this.extractHireFromWebhook(payload);
       if (!hireData) return;
 
+      // FILTER: Only process hires from YOUR 18 tracked companies
+      const trackedCompanies = await storage.getCompanies();
+      const isTrackedCompany = trackedCompanies.some(company => 
+        company.name.toLowerCase().includes(hireData.company.toLowerCase()) ||
+        hireData.company.toLowerCase().includes(company.name.toLowerCase())
+      );
+
+      if (!isTrackedCompany) {
+        logger.info(`Hire from untracked company ignored: ${hireData.company}`);
+        return;
+      }
+
       const existingHires = await storage.getNewHires();
       const exists = existingHires.some(h => 
         h.personName.toLowerCase() === hireData.personName.toLowerCase() &&
@@ -15,7 +27,7 @@ export class MinimalHireWebhook {
 
       if (!exists) {
         await storage.createNewHire(hireData);
-        logger.info(`New hire saved: ${hireData.personName} at ${hireData.company}`);
+        logger.info(`✅ New hire from tracked company: ${hireData.personName} at ${hireData.company}`);
       }
     } catch (error) {
       logger.error('Webhook processing failed:', error);

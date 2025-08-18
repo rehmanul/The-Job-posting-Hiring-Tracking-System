@@ -28,10 +28,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   finalTracker = new FinalJobTracker();
   await finalTracker.initialize();
   
-  // Start complete workflow
-  await finalTracker.completeHireTracking();
-  await finalTracker.completeJobTracking();
-  await finalTracker.startScheduledTracking();
+  // Don't auto-start - wait for user to click Start Tracking button
 
   // API endpoint to upload LinkedIn session cookies
   app.post("/api/linkedin/session-cookies", async (req: Request, res: Response) => {
@@ -253,7 +250,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // System control endpoints
   app.post("/api/system/pause", async (req, res) => {
     try {
-      res.json({ success: true, message: "Clean system runs continuously" });
+      if (finalTracker) {
+        await finalTracker.stopScheduledTracking();
+        res.json({ success: true, message: "Tracking paused successfully" });
+      } else {
+        res.status(500).json({ error: "Tracker not available" });
+      }
     } catch (error: any) {
       console.error("Error pausing system:", error);
       res.status(500).json({ error: "Failed to pause system" });
@@ -262,7 +264,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/system/resume", async (req, res) => {
     try {
-      res.json({ success: true, message: "Clean system is always running" });
+      if (finalTracker) {
+        await finalTracker.startScheduledTracking();
+        res.json({ success: true, message: "Tracking resumed successfully" });
+      } else {
+        res.status(500).json({ error: "Tracker not available" });
+      }
     } catch (error: any) {
       console.error("Error resuming system:", error);
       res.status(500).json({ error: "Failed to resume system" });
@@ -284,7 +291,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/", async (req, res) => {
+  app.get("/linkedin-callback", async (req, res) => {
     const { code } = req.query;
     if (code) {
       try {
@@ -304,8 +311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.send('<script>alert("LinkedIn authentication error!"); window.close();</script>');
       }
     } else {
-      // Serve the main app
-      res.sendFile('index.html', { root: 'dist/public' });
+      res.status(400).send('No authorization code provided');
     }
   });
 
@@ -328,10 +334,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/system/start-tracking", async (req, res) => {
     try {
       if (finalTracker) {
-        // Already running - just confirm
+        // Start the complete workflow
+        await finalTracker.completeHireTracking();
+        await finalTracker.completeJobTracking();
+        await finalTracker.startScheduledTracking();
+        
         res.json({ 
           success: true, 
-          message: "Clean tracking system is running",
+          message: "Clean tracking system started successfully",
           config: {
             mode: "Production",
             services: ["LinkedIn Webhook", "Career Page Scraper", "Google Sheets", "Slack"],
@@ -438,7 +448,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/system/status", async (req, res) => {
     try {
       const status = {
-        isRunning: finalTracker ? true : false,
+        isRunning: finalTracker ? finalTracker.isTrackingRunning() : false,
         mode: 'Production',
         services: ['LinkedIn Webhook', 'Career Page Scraper', 'Google Sheets', 'Slack']
       };

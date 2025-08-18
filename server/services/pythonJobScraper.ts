@@ -10,6 +10,15 @@ export class PythonJobScraper {
       return;
     }
 
+    // Always skip if company was already processed in this session
+    const existingJobs = await storage.getJobPostings();
+    const companyJobs = existingJobs.filter(j => j.company === company.name);
+    
+    if (companyJobs.length > 0) {
+      logger.info(`${company.name} already has ${companyJobs.length} jobs - skipping to avoid duplicates`);
+      return;
+    }
+
     let browser;
     try {
       logger.info(`Scraping jobs from ${company.name}: ${company.careerPageUrl}`);
@@ -215,20 +224,33 @@ export class PythonJobScraper {
 
   private async saveJobIfNew(jobData: any): Promise<void> {
     try {
-      // Check if job already exists
-      const existingJobs = await storage.getJobPostings();
-      const exists = existingJobs.some(j => 
-        j.jobTitle.toLowerCase() === jobData.jobTitle.toLowerCase() &&
-        j.company.toLowerCase() === jobData.company.toLowerCase()
+      // Check Google Sheets for duplicates: same company + same position + same department
+      const { FinalGoogleSheets } = await import('./finalGoogleSheets');
+      const googleSheets = new FinalGoogleSheets();
+      await googleSheets.initialize();
+      
+      const isDuplicate = await googleSheets.checkJobExists(
+        jobData.company,
+        jobData.jobTitle,
+        'General'
       );
-
-      if (exists) {
+      
+      if (isDuplicate) {
+        logger.info(`Duplicate in Google Sheets - skipped: ${jobData.jobTitle} at ${jobData.company}`);
         return;
       }
 
       // Save new job
       await storage.createJobPosting(jobData);
       logger.info(`New job saved: ${jobData.jobTitle} at ${jobData.company}`);
+      
+      // Also log to system logs for activity feed
+      await storage.createSystemLog({
+        level: 'info',
+        service: 'job_scraper',
+        message: `New job found: ${jobData.jobTitle} at ${jobData.company}`,
+        metadata: { company: jobData.company, jobTitle: jobData.jobTitle }
+      });
 
     } catch (error) {
       logger.error('Failed to save job:', error);

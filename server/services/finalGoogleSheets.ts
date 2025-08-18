@@ -176,4 +176,42 @@ export class FinalGoogleSheets {
       logger.error('Activity log update failed:', error);
     }
   }
+
+  async checkJobExists(company: string, jobTitle: string, department: string): Promise<boolean> {
+    try {
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: 'Job Postings!A:H'
+      });
+      
+      const rows = response.data.values || [];
+      return rows.some(row => 
+        row[0]?.toLowerCase().trim() === company.toLowerCase().trim() &&
+        row[1]?.toLowerCase().trim() === jobTitle.toLowerCase().trim() &&
+        row[3]?.toLowerCase().trim() === department.toLowerCase().trim()
+      );
+    } catch (error) {
+      logger.error('Failed to check job exists:', error);
+      return false;
+    }
+  }
+
+  async checkHireExists(company: string, personName: string, position: string): Promise<boolean> {
+    try {
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: 'New Hires!A:J'
+      });
+      
+      const rows = response.data.values || [];
+      return rows.some(row => 
+        row[1]?.toLowerCase().trim() === company.toLowerCase().trim() &&
+        row[0]?.toLowerCase().trim() === personName.toLowerCase().trim() &&
+        row[2]?.toLowerCase().trim() === position.toLowerCase().trim()
+      );
+    } catch (error) {
+      logger.error('Failed to check hire exists:', error);
+      return false;
+    }
+  }
 }

@@ -12,6 +12,10 @@ export class FinalJobTracker {
   private slackNotifier: FinalSlackNotifier;
   private processedHires: Set<string> = new Set();
   private processedJobs: Set<string> = new Set();
+  private jobInterval: NodeJS.Timeout | null = null;
+  private hireInterval: NodeJS.Timeout | null = null;
+  private summaryInterval: NodeJS.Timeout | null = null;
+  private isRunning: boolean = false;
 
   constructor() {
     this.hireWebhook = new MinimalHireWebhook();
@@ -57,10 +61,20 @@ export class FinalJobTracker {
       const hireData = await this.extractHireFromWebhook(payload);
       if (!hireData) return;
 
-      const hireKey = `${hireData.personName}-${hireData.company}`;
-      if (this.processedHires.has(hireKey)) return;
+      // Check Google Sheets for duplicate hires: same company + same person + same position
+      const isDuplicateHire = await this.googleSheets.checkHireExists(
+        hireData.company,
+        hireData.personName,
+        hireData.position
+      );
+      
+      if (isDuplicateHire) {
+        logger.info(`Duplicate hire in Google Sheets - skipped: ${hireData.personName} at ${hireData.company}`);
+        return;
+      }
 
       await storage.createNewHire(hireData);
+      const hireKey = `${hireData.personName}-${hireData.company}`;
       this.processedHires.add(hireKey);
 
       // Update Google Sheets
@@ -98,6 +112,14 @@ export class FinalJobTracker {
       });
 
       logger.info(`New hire processed: ${hireData.personName} at ${hireData.company}`);
+      
+      // Also log to system logs for activity feed
+      await storage.createSystemLog({
+        level: 'info',
+        service: 'hire_tracker',
+        message: `New hire detected: ${hireData.personName} joined ${hireData.company}`,
+        metadata: { company: hireData.company, personName: hireData.personName }
+      });
     } catch (error) {
       logger.error('Webhook processing failed:', error);
     }
@@ -116,6 +138,11 @@ export class FinalJobTracker {
 
   // Complete job tracking (from August 15th)
   async completeJobTracking(): Promise<void> {
+    if (!this.isRunning) {
+      logger.info('Job tracking paused - skipping');
+      return;
+    }
+    
     try {
       logger.info('Starting complete job tracking from August 15th');
       
@@ -125,15 +152,29 @@ export class FinalJobTracker {
       let totalJobs = 0;
 
       for (const company of activeCompanies) {
+        if (!this.isRunning) {
+          logger.info('Job tracking paused during execution');
+          break;
+        }
+        
         try {
           await this.jobScraper.scrapeCompanyJobs(company);
           
           // Get newly scraped jobs from storage
           const allJobs = await storage.getJobPostings();
+          const existingJobTitles = new Set(allJobs.map(j => `${j.jobTitle}-${j.company}`));
+          
           const newJobs = allJobs.filter(j => 
             j.company === company.name && 
-            !this.processedJobs.has(`${j.jobTitle}-${j.company}`)
+            !this.processedJobs.has(`${j.jobTitle}-${j.company}`) &&
+            j.foundDate && j.foundDate.toDateString() === new Date().toDateString() // Only today's jobs
           );
+          
+          // Skip if no new jobs found
+          if (newJobs.length === 0) {
+            logger.info(`No new jobs found for ${company.name} - skipping`);
+            continue;
+          }
           
           // Process newly scraped jobs
           for (const job of newJobs) {
@@ -181,27 +222,63 @@ export class FinalJobTracker {
 
   // Scheduled tracking (4hrs jobs, 6hrs hires)
   async startScheduledTracking(): Promise<void> {
+    if (this.isRunning) {
+      logger.info('Scheduled tracking already running');
+      return;
+    }
+
     logger.info('Starting scheduled tracking');
+    this.isRunning = true;
 
     // Job tracking every 4 hours
-    setInterval(async () => {
-      await this.completeJobTracking();
-      await this.updateAnalytics();
+    this.jobInterval = setInterval(async () => {
+      if (this.isRunning) {
+        await this.completeJobTracking();
+        await this.updateAnalytics();
+      }
     }, 4 * 60 * 60 * 1000);
 
     // Hire tracking every 6 hours  
-    setInterval(async () => {
-      await this.completeHireTracking();
-      await this.updateAnalytics();
+    this.hireInterval = setInterval(async () => {
+      if (this.isRunning) {
+        await this.completeHireTracking();
+        await this.updateAnalytics();
+      }
     }, 6 * 60 * 60 * 1000);
 
     // Daily summary at 9 AM
-    setInterval(async () => {
-      const now = new Date();
-      if (now.getHours() === 9 && now.getMinutes() === 0) {
-        await this.sendDailySummary();
+    this.summaryInterval = setInterval(async () => {
+      if (this.isRunning) {
+        const now = new Date();
+        if (now.getHours() === 9 && now.getMinutes() === 0) {
+          await this.sendDailySummary();
+        }
       }
     }, 60 * 1000);
+  }
+
+  async stopScheduledTracking(): Promise<void> {
+    logger.info('Stopping scheduled tracking');
+    this.isRunning = false;
+
+    if (this.jobInterval) {
+      clearInterval(this.jobInterval);
+      this.jobInterval = null;
+    }
+
+    if (this.hireInterval) {
+      clearInterval(this.hireInterval);
+      this.hireInterval = null;
+    }
+
+    if (this.summaryInterval) {
+      clearInterval(this.summaryInterval);
+      this.summaryInterval = null;
+    }
+  }
+
+  isTrackingRunning(): boolean {
+    return this.isRunning;
   }
 
 
