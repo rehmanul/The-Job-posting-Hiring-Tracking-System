@@ -18,6 +18,7 @@ import { insertCompanySchema } from "@shared/schema";
 import { LinkedInOAuth } from "./services/linkedinAuth";
 import { LinkedInWebhookService } from "./services/linkedinWebhook";
 import { WebhookHandler } from "./services/webhookHandler";
+import { logger } from "./logger";
 
 let finalTracker: FinalJobTracker | null = null;
 
@@ -33,7 +34,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await finalTracker.completeJobTracking();
   await finalTracker.startScheduledTracking();
   
-  logger.info('🚀 Auto-started: Job tracking (4hrs), Hire tracking (real-time), Daily summaries (9AM)');
+  console.log('🚀 Auto-started: Job tracking (4hrs), Hire tracking (real-time), Daily summaries (9AM)');
 
   // API endpoint to upload LinkedIn session cookies
   app.post("/api/linkedin/session-cookies", async (req: Request, res: Response) => {
