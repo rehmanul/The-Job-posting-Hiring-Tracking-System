@@ -8,19 +8,21 @@ export default function StartTrackingButton() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const startTrackingMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/system/start-tracking"),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/system/status"] });
+  const runNowMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/system/run-now"),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/activity"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hires"] });
       toast({
-        title: "Tracking Started",
-        description: "Job tracking engine has been started successfully.",
+        title: "Manual Scan Complete",
+        description: (data as any)?.message || "The manual scan has finished successfully.",
       });
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: "Failed to start tracking engine.",
+        description: error?.message || "Failed to trigger manual scan.",
         variant: "destructive",
       });
     },
@@ -28,12 +30,12 @@ export default function StartTrackingButton() {
 
   return (
     <Button
-      onClick={() => startTrackingMutation.mutate()}
-      disabled={startTrackingMutation.isPending}
-      className="bg-green-600 hover:bg-green-700 text-white"
+      onClick={() => runNowMutation.mutate()}
+      disabled={runNowMutation.isPending}
+      className="bg-blue-600 hover:bg-blue-700 text-white"
     >
       <Play className="mr-2 h-4 w-4" />
-      Start Tracking
+      Run Manual Scan
     </Button>
   );
 }
