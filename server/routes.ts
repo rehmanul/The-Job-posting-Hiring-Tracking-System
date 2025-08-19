@@ -30,11 +30,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await finalTracker.initialize();
   
   // AUTO-START: Begin tracking immediately on server startup
-  await finalTracker.completeHireTracking();
-  await finalTracker.completeJobTracking();
   await finalTracker.startScheduledTracking();
   
-  console.log('🚀 Auto-started: Job tracking (4hrs), Hire tracking (real-time), Daily summaries (9AM)');
+  // Run initial cycles
+  setTimeout(async () => {
+    await finalTracker.completeHireTracking();
+    await finalTracker.completeJobTracking();
+  }, 5000); // Wait 5 seconds for server to fully start
+  
+  console.log('🚀 Auto-started: Cron-based scheduling active');
+  console.log('📅 Jobs: Every 4 hours (12AM, 4AM, 8AM, 12PM, 4PM, 8PM)');
+  console.log('👥 Hires: Every 6 hours (12AM, 6AM, 12PM, 6PM)');
+  console.log('📊 Summary: Daily at 9:00 AM');
+  console.log('🔄 Real-time: LinkedIn webhooks processed immediately');
 
   // API endpoint to upload LinkedIn session cookies
   app.post("/api/linkedin/session-cookies", async (req: Request, res: Response) => {
@@ -341,14 +349,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       if (finalTracker) {
         if (finalTracker.isTrackingRunning()) {
+          const scheduleStatus = finalTracker.getScheduleStatus();
           res.json({ 
             success: true, 
             message: "Tracking system is already running (auto-started)",
             config: {
               mode: "Production",
               services: ["LinkedIn Webhook", "Career Page Scraper", "Google Sheets", "Slack"],
-              frequency: "4hrs jobs, real-time hires"
-            }
+              frequency: "Cron-based: Jobs every 4hrs, Hires every 6hrs, Summary daily 9AM"
+            },
+            schedule: scheduleStatus
           });
         } else {
           // Manual restart if stopped
@@ -356,14 +366,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await finalTracker.completeJobTracking();
           await finalTracker.startScheduledTracking();
           
+          const scheduleStatus = finalTracker.getScheduleStatus();
           res.json({ 
             success: true, 
             message: "Tracking system restarted successfully",
             config: {
               mode: "Production",
               services: ["LinkedIn Webhook", "Career Page Scraper", "Google Sheets", "Slack"],
-              frequency: "4hrs jobs, real-time hires"
-            }
+              frequency: "Cron-based: Jobs every 4hrs, Hires every 6hrs, Summary daily 9AM"
+            },
+            schedule: scheduleStatus
           });
         }
       } else {
@@ -468,12 +480,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const status = {
         isRunning: finalTracker ? finalTracker.isTrackingRunning() : false,
         mode: 'Production',
-        services: ['LinkedIn Webhook', 'Career Page Scraper', 'Google Sheets', 'Slack']
+        services: ['LinkedIn Webhook', 'Career Page Scraper', 'Google Sheets', 'Slack'],
+        schedule: finalTracker ? finalTracker.getScheduleStatus() : null
       };
       res.json(status);
     } catch (error: any) {
       console.error("Error getting system status:", error);
       res.status(500).json({ error: "Failed to get system status" });
+    }
+  });
+
+  // New endpoint specifically for schedule status
+  app.get("/api/system/schedule", async (req, res) => {
+    try {
+      if (finalTracker) {
+        const scheduleStatus = finalTracker.getScheduleStatus();
+        res.json(scheduleStatus);
+      } else {
+        res.status(500).json({ error: "Tracker not initialized" });
+      }
+    } catch (error: any) {
+      console.error("Error getting schedule status:", error);
+      res.status(500).json({ error: "Failed to get schedule status" });
     }
   });
 

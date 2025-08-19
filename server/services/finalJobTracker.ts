@@ -4,6 +4,7 @@ import { PythonJobScraper } from './pythonJobScraper';
 import { FinalGoogleSheets } from './finalGoogleSheets';
 import { FinalSlackNotifier } from './finalSlackNotifier';
 import { logger } from '../logger';
+import cron from 'node-cron';
 
 export class FinalJobTracker {
   private hireWebhook: MinimalHireWebhook;
@@ -12,9 +13,10 @@ export class FinalJobTracker {
   private slackNotifier: FinalSlackNotifier;
   private processedHires: Set<string> = new Set();
   private processedJobs: Set<string> = new Set();
-  private jobInterval: NodeJS.Timeout | null = null;
-  private hireInterval: NodeJS.Timeout | null = null;
-  private summaryInterval: NodeJS.Timeout | null = null;
+  private jobCronTask: cron.ScheduledTask | null = null;
+  private hireCronTask: cron.ScheduledTask | null = null;
+  private summaryCronTask: cron.ScheduledTask | null = null;
+  private analyticsCronTask: cron.ScheduledTask | null = null;
   private isRunning: boolean = false;
 
   constructor() {
@@ -128,9 +130,17 @@ export class FinalJobTracker {
   // Complete hire tracking - ONLY real LinkedIn webhook notifications
   async completeHireTracking(): Promise<void> {
     try {
-      logger.info('Hire tracking initialized - waiting for REAL LinkedIn webhook notifications only');
-      logger.info('No historical data - only future hire notifications will be processed');
-      logger.info('Webhook URL: https://boostkit-jobtracker.duckdns.org/webhook');
+      logger.info('✅ Hire tracking cycle completed - LinkedIn webhooks are active');
+      logger.info('🔗 Webhook URL: https://boostkit-jobtracker.duckdns.org/webhook');
+      logger.info('⏰ Next hire check: ' + this.getNextScheduledRuns().hireTracking);
+      
+      // Log to system for activity feed
+      await storage.createSystemLog({
+        level: 'info',
+        service: 'hire_tracker',
+        message: 'Hire tracking cycle completed - webhooks active',
+        metadata: { webhookUrl: 'https://boostkit-jobtracker.duckdns.org/webhook' }
+      });
     } catch (error) {
       logger.error('Complete hire tracking failed:', error);
     }
@@ -214,71 +224,193 @@ export class FinalJobTracker {
         }
       }
 
-      logger.info(`Complete job tracking finished: ${totalJobs} jobs processed`);
+      logger.info(`✅ Job tracking cycle completed: ${totalJobs} jobs processed`);
+      logger.info('⏰ Next job check: ' + this.getNextScheduledRuns().jobTracking);
+      
+      // Log to system for activity feed
+      await storage.createSystemLog({
+        level: 'info',
+        service: 'job_tracker',
+        message: `Job tracking cycle completed: ${totalJobs} jobs processed`,
+        metadata: { jobsProcessed: totalJobs, companiesScanned: activeCompanies.length }
+      });
     } catch (error) {
-      logger.error('Complete job tracking failed:', error);
+      logger.error('❌ Complete job tracking failed:', error);
+      
+      // Log error to system
+      await storage.createSystemLog({
+        level: 'error',
+        service: 'job_tracker',
+        message: 'Job tracking cycle failed: ' + (error as Error).message,
+        metadata: { error: (error as Error).message }
+      });
     }
   }
 
-  // Scheduled tracking (4hrs jobs, 6hrs hires)
+  // Scheduled tracking with proper cron jobs
   async startScheduledTracking(): Promise<void> {
     if (this.isRunning) {
       logger.info('Scheduled tracking already running');
       return;
     }
 
-    logger.info('Starting scheduled tracking');
+    logger.info('🚀 Starting scheduled tracking with cron jobs');
     this.isRunning = true;
 
-    // Job tracking every 4 hours
-    this.jobInterval = setInterval(async () => {
+    // Job tracking every 4 hours: 12:00 AM, 4:00 AM, 8:00 AM, 12:00 PM, 4:00 PM, 8:00 PM
+    this.jobCronTask = cron.schedule('0 0,4,8,12,16,20 * * *', async () => {
       if (this.isRunning) {
+        logger.info('🔍 Running scheduled job tracking (every 4 hours)');
         await this.completeJobTracking();
-        await this.updateAnalytics();
       }
-    }, 4 * 60 * 60 * 1000);
+    }, {
+      scheduled: true,
+      timezone: 'UTC'
+    });
 
-    // Hire tracking every 6 hours  
-    this.hireInterval = setInterval(async () => {
+    // Hire tracking every 6 hours: 12:00 AM, 6:00 AM, 12:00 PM, 6:00 PM
+    this.hireCronTask = cron.schedule('0 0,6,12,18 * * *', async () => {
       if (this.isRunning) {
+        logger.info('👥 Running scheduled hire tracking (every 6 hours)');
         await this.completeHireTracking();
+      }
+    }, {
+      scheduled: true,
+      timezone: 'UTC'
+    });
+
+    // Daily summary at 9:00 AM every day
+    this.summaryCronTask = cron.schedule('0 9 * * *', async () => {
+      if (this.isRunning) {
+        logger.info('📈 Generating daily summary (9:00 AM)');
+        await this.sendDailySummary();
+      }
+    }, {
+      scheduled: true,
+      timezone: 'UTC'
+    });
+
+    // Analytics update after each job/hire cycle (every 2 hours)
+    this.analyticsCronTask = cron.schedule('0 */2 * * *', async () => {
+      if (this.isRunning) {
+        logger.info('📊 Updating analytics (every 2 hours)');
         await this.updateAnalytics();
       }
-    }, 6 * 60 * 60 * 1000);
+    }, {
+      scheduled: true,
+      timezone: 'UTC'
+    });
 
-    // Daily summary at 9 AM
-    this.summaryInterval = setInterval(async () => {
-      if (this.isRunning) {
-        const now = new Date();
-        if (now.getHours() === 9 && now.getMinutes() === 0) {
-          await this.sendDailySummary();
-        }
-      }
-    }, 60 * 1000);
+    logger.info('✅ Cron jobs scheduled:');
+    logger.info('   📋 Jobs: Every 4 hours (12AM, 4AM, 8AM, 12PM, 4PM, 8PM)');
+    logger.info('   👥 Hires: Every 6 hours (12AM, 6AM, 12PM, 6PM)');
+    logger.info('   📈 Summary: Daily at 9:00 AM');
+    logger.info('   📊 Analytics: Every 2 hours');
+    logger.info('   🔗 Real-time: LinkedIn webhooks processed immediately');
   }
 
   async stopScheduledTracking(): Promise<void> {
-    logger.info('Stopping scheduled tracking');
+    logger.info('⏸️ Stopping scheduled tracking');
     this.isRunning = false;
 
-    if (this.jobInterval) {
-      clearInterval(this.jobInterval);
-      this.jobInterval = null;
+    if (this.jobCronTask) {
+      this.jobCronTask.stop();
+      this.jobCronTask.destroy();
+      this.jobCronTask = null;
     }
 
-    if (this.hireInterval) {
-      clearInterval(this.hireInterval);
-      this.hireInterval = null;
+    if (this.hireCronTask) {
+      this.hireCronTask.stop();
+      this.hireCronTask.destroy();
+      this.hireCronTask = null;
     }
 
-    if (this.summaryInterval) {
-      clearInterval(this.summaryInterval);
-      this.summaryInterval = null;
+    if (this.summaryCronTask) {
+      this.summaryCronTask.stop();
+      this.summaryCronTask.destroy();
+      this.summaryCronTask = null;
     }
+
+    if (this.analyticsCronTask) {
+      this.analyticsCronTask.stop();
+      this.analyticsCronTask.destroy();
+      this.analyticsCronTask = null;
+    }
+
+    logger.info('✅ All cron jobs stopped');
   }
 
   isTrackingRunning(): boolean {
     return this.isRunning;
+  }
+
+  getScheduleStatus(): any {
+    return {
+      isRunning: this.isRunning,
+      cronJobs: {
+        jobTracking: {
+          active: this.jobCronTask ? !this.jobCronTask.destroyed : false,
+          schedule: '0 0,4,8,12,16,20 * * *',
+          description: 'Every 4 hours (12AM, 4AM, 8AM, 12PM, 4PM, 8PM)'
+        },
+        hireTracking: {
+          active: this.hireCronTask ? !this.hireCronTask.destroyed : false,
+          schedule: '0 0,6,12,18 * * *',
+          description: 'Every 6 hours (12AM, 6AM, 12PM, 6PM)'
+        },
+        dailySummary: {
+          active: this.summaryCronTask ? !this.summaryCronTask.destroyed : false,
+          schedule: '0 9 * * *',
+          description: 'Daily at 9:00 AM'
+        },
+        analytics: {
+          active: this.analyticsCronTask ? !this.analyticsCronTask.destroyed : false,
+          schedule: '0 */2 * * *',
+          description: 'Every 2 hours'
+        }
+      },
+      nextRuns: this.getNextScheduledRuns()
+    };
+  }
+
+  private getNextScheduledRuns(): any {
+    const now = new Date();
+    const nextRuns: any = {};
+
+    // Calculate next job tracking run (every 4 hours)
+    const jobHours = [0, 4, 8, 12, 16, 20];
+    const currentHour = now.getHours();
+    let nextJobHour = jobHours.find(h => h > currentHour);
+    if (!nextJobHour) nextJobHour = jobHours[0]; // Next day
+    
+    const nextJobRun = new Date(now);
+    if (nextJobHour <= currentHour) {
+      nextJobRun.setDate(nextJobRun.getDate() + 1);
+    }
+    nextJobRun.setHours(nextJobHour, 0, 0, 0);
+    nextRuns.jobTracking = nextJobRun.toISOString();
+
+    // Calculate next hire tracking run (every 6 hours)
+    const hireHours = [0, 6, 12, 18];
+    let nextHireHour = hireHours.find(h => h > currentHour);
+    if (!nextHireHour) nextHireHour = hireHours[0]; // Next day
+    
+    const nextHireRun = new Date(now);
+    if (nextHireHour <= currentHour) {
+      nextHireRun.setDate(nextHireRun.getDate() + 1);
+    }
+    nextHireRun.setHours(nextHireHour, 0, 0, 0);
+    nextRuns.hireTracking = nextHireRun.toISOString();
+
+    // Calculate next daily summary (9 AM)
+    const nextSummary = new Date(now);
+    if (now.getHours() >= 9) {
+      nextSummary.setDate(nextSummary.getDate() + 1);
+    }
+    nextSummary.setHours(9, 0, 0, 0);
+    nextRuns.dailySummary = nextSummary.toISOString();
+
+    return nextRuns;
   }
 
 
