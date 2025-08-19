@@ -399,6 +399,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/system/run-now", async (req, res) => {
+    try {
+      if (finalTracker) {
+        console.log("Manual tracking run triggered.");
+        await finalTracker.completeHireTracking();
+        await finalTracker.completeJobTracking();
+        res.json({ success: true, message: "Manual tracking run completed successfully." });
+      } else {
+        res.status(500).json({ error: "Tracker not available" });
+      }
+    } catch (error: any) {
+      console.error("Error during manual tracking run:", error);
+      res.status(500).json({ error: "Failed to perform manual tracking run." });
+    }
+  });
+
   const linkedinAuth = new LinkedInOAuth();
   const linkedinWebhook = new LinkedInWebhookService();
   const webhookHandler = WebhookHandler.getInstance();
