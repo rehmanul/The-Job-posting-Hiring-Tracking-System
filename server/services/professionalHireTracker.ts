@@ -1,48 +1,49 @@
 import type { Company, InsertNewHire } from '@shared/schema';
 import { storage } from '../storage';
+import { findRecentHires } from './pdlService';
+import { FinalGoogleSheets } from './finalGoogleSheets';
 
 export class ProfessionalHireTracker {
-  private linkedinAccessToken: string;
   private customSearchKey: string;
   private customSearchEngineId: string;
+  private googleSheetsService: FinalGoogleSheets;
 
   constructor() {
-    this.linkedinAccessToken = process.env.LINKEDIN_ACCESS_TOKEN || '';
     this.customSearchKey = process.env.GOOGLE_CUSTOM_SEARCH_API_KEY || '';
     this.customSearchEngineId = process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID || '';
+    this.googleSheetsService = new FinalGoogleSheets();
+  }
+
+  async trackHires(): Promise<void> {
+    const companies = await this.googleSheetsService.getCompanyData();
+    for (const company of companies) {
+      if (company.trackHiring) {
+        await this.trackCompanyHires(company);
+      }
+    }
   }
 
   async trackCompanyHires(company: Company): Promise<InsertNewHire[]> {
-    const logMessage = `👥 Sequential hire tracking for ${company.name}`;
+    const logMessage = `👥 Professional hire tracking for ${company.name}`;
     console.log(logMessage);
     await this.logToDatabase('info', 'hire_tracker', logMessage);
 
     let hires: InsertNewHire[] = [];
 
-    // STEP 1: LinkedIn Official API
+    // STEP 1: People Data Labs (PDL) API
     try {
-      console.log(`🔗 Step 1: LinkedIn Official API for ${company.name}`);
-      const linkedinAPIHires = await this.getLinkedInAPIHires(company);
-      hires.push(...linkedinAPIHires);
-      console.log(`✅ LinkedIn API found ${linkedinAPIHires.length} hires`);
+      console.log(`🔗 Step 1: PDL API for ${company.name}`);
+      const pdlHires = await this.getPdlHires(company);
+      hires.push(...pdlHires);
+      console.log(`✅ PDL API found ${pdlHires.length} hires`);
     } catch (error) {
-      console.warn(`⚠️ LinkedIn API failed for ${company.name}:`, error);
+      console.warn(`⚠️ PDL API failed for ${company.name}:`, error);
     }
 
-    // STEP 2: Webhook Data (if available)
-    try {
-      console.log(`📡 Step 2: Webhook data for ${company.name}`);
-      const webhookHires = await this.getWebhookHires(company);
-      hires.push(...webhookHires);
-      console.log(`✅ Webhook found ${webhookHires.length} hires`);
-    } catch (error) {
-      console.warn(`⚠️ Webhook failed for ${company.name}:`, error);
-    }
-
-    // STEP 3: Custom Search (fallback)
+    // STEP 2: Custom Search (fallback)
     if (hires.length === 0) {
       try {
-        console.log(`🔍 Step 3: Custom Search fallback for ${company.name}`);
+        console.log(`🔍 Step 2: Custom Search fallback for ${company.name}`);
         const linkedinHires = await this.searchLinkedInHires(company);
         hires.push(...linkedinHires);
         console.log(`✅ Custom Search found ${linkedinHires.length} hires`);
@@ -63,6 +64,13 @@ export class ProfessionalHireTracker {
 
       const uniqueHires = this.deduplicateHires(hires);
       
+      for (const hire of uniqueHires) {
+        const exists = await this.googleSheetsService.checkHireExists(hire.company, hire.personName, hire.position);
+        if (!exists) {
+          await this.googleSheetsService.updateNewHires(hire);
+        }
+      }
+
       const resultMessage = `✅ Found ${uniqueHires.length} professional hires for ${company.name}`;
       console.log(resultMessage);
       await this.logToDatabase('info', 'hire_tracker', resultMessage);
@@ -73,6 +81,16 @@ export class ProfessionalHireTracker {
       const errorMessage = `❌ Hire tracking error for ${company.name}: ${error}`;
       console.error(errorMessage);
       await this.logToDatabase('error', 'hire_tracker', errorMessage);
+      return [];
+    }
+  }
+
+  private async getPdlHires(company: Company): Promise<InsertNewHire[]> {
+    try {
+      const recentHires = await findRecentHires(company);
+      return recentHires;
+    } catch (error) {
+      console.error(`Error fetching hires from PDL for ${company.name}:`, error);
       return [];
     }
   }
@@ -163,18 +181,10 @@ export class ProfessionalHireTracker {
   private extractLinkedInHire(item: any, company: Company): InsertNewHire | null {
     const text = `${item.title} ${item.snippet}`;
     
-    // Advanced LinkedIn hire patterns
     const patterns = [
-      // Executive announcements - extract name only
       /(?:pleased|excited|thrilled|proud)\s+to\s+(?:announce|welcome)\s+(?:that\s+)?([A-Z][a-z]+\s+[A-Z][a-z]+)(?:\s+has|\s+as)/i,
-      
-      // Team joins
       /(?:welcome|introducing)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]*)*\s+[A-Z][a-z]+)\s+(?:to\s+(?:our\s+)?team|who\s+(?:has\s+)?joined\s+us)\s+as\s+(?:our\s+new\s+)?([\w\s]+)/i,
-      
-      // Professional joins
       /([A-Z][a-z]+(?:\s+[A-Z][a-z]*)*\s+[A-Z][a-z]+)\s+(?:has\s+)?joined\s+(?:us|our\s+team|the\s+company)\s+as\s+(?:our\s+new\s+)?([\w\s]+)/i,
-      
-      // Appointments
       /(?:delighted|happy)\s+to\s+announce\s+(?:that\s+)?([A-Z][a-z]+(?:\s+[A-Z][a-z]*)*\s+[A-Z][a-z]+)\s+(?:has\s+been\s+)?(?:appointed|named)\s+as\s+(?:our\s+new\s+)?([\w\s]+)/i
     ];
 
@@ -269,7 +279,6 @@ export class ProfessionalHireTracker {
     if (!name || !position) return false;
     if (name.split(' ').length < 2) return false;
     
-    // Reject sports/entertainment terms
     const invalidTerms = [
       'basketball', 'football', 'sports', 'star', 'player', 'striker',
       'midfielder', 'defender', 'goalkeeper', 'tennis', 'soccer',
@@ -282,7 +291,6 @@ export class ProfessionalHireTracker {
       return false;
     }
 
-    // Must be business position
     const businessKeywords = [
       'ceo', 'cto', 'cfo', 'coo', 'director', 'manager', 'head',
       'vice president', 'vp', 'president', 'senior', 'lead', 'officer',
@@ -297,17 +305,14 @@ export class ProfessionalHireTracker {
   private calculateConfidenceScore(text: string, personName: string, position: string): string {
     let score = 70;
 
-    // Executive positions
     if (/CEO|CTO|CFO|COO|VP|President|Director|Head\s+of/i.test(position)) {
       score += 20;
     }
 
-    // Professional language
     if (/pleased|excited|thrilled|proud|delighted/i.test(text)) {
       score += 10;
     }
 
-    // LinkedIn source
     if (text.includes('linkedin.com')) {
       score += 5;
     }
@@ -344,7 +349,7 @@ export class ProfessionalHireTracker {
     for (const hire of hires) {
       const key = `${hire.personName.toLowerCase()}-${hire.company.toLowerCase()}`;
       
-      if (!seen.has(key) || (seen.get(key)!.confidenceScore < hire.confidenceScore)) {
+      if (!seen.has(key) || (parseInt(seen.get(key)!.confidenceScore) < parseInt(hire.confidenceScore))) {
         seen.set(key, hire);
       }
     }
@@ -374,7 +379,7 @@ export class ProfessionalHireTracker {
         }
       }
     }
-    return new Date(); // Default to current date
+    return new Date();
   }
 
   private extractPreviousCompany(text: string, personName: string): string | null {
@@ -397,18 +402,15 @@ export class ProfessionalHireTracker {
   }
 
   private extractLinkedInProfile(link: string, text: string): string | null {
-    // Only return if it's a personal profile (linkedin.com/in/), not company page
     if (link.includes('linkedin.com/in/')) {
       return link;
     }
     
-    // Try to extract personal LinkedIn profile from text content
     const profileMatch = text.match(/linkedin\.com\/in\/([\w-]+)/i);
     if (profileMatch) {
       return `https://linkedin.com/in/${profileMatch[1]}`;
     }
     
-    // Don't return company LinkedIn URLs - return null instead
     return null;
   }
 
@@ -424,64 +426,6 @@ export class ProfessionalHireTracker {
     return highConfidenceIndicators.some(indicator => 
       text.toLowerCase().includes(indicator)
     );
-  }
-
-  // STEP 1: LinkedIn Official API
-  private async getLinkedInAPIHires(company: Company): Promise<InsertNewHire[]> {
-    if (!this.linkedinAccessToken) return [];
-
-    const orgId = this.extractOrgId(company.linkedinUrl);
-    if (!orgId) return [];
-
-    try {
-      const postsUrl = `https://api.linkedin.com/rest/ugcPosts?q=authors&authors=List(urn:li:organization:${orgId})&sortBy=LAST_MODIFIED&count=50`;
-      
-      const response = await fetch(postsUrl, {
-        headers: {
-          'Authorization': `Bearer ${this.linkedinAccessToken}`,
-          'X-Restli-Protocol-Version': '2.0.0',
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`LinkedIn API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const posts = data.elements || [];
-      
-      const hires: InsertNewHire[] = [];
-      for (const post of posts) {
-        const text = post.specificContent?.['com.linkedin.ugc.ShareContent']?.shareCommentary?.text || '';
-        if (text) {
-          const hire = this.extractLinkedInHire(text, company);
-          if (hire) hires.push(hire);
-        }
-      }
-
-      return hires;
-    } catch (error) {
-      console.error(`LinkedIn API error for ${company.name}:`, error);
-      return [];
-    }
-  }
-
-  // STEP 2: Webhook Data
-  private async getWebhookHires(company: Company): Promise<InsertNewHire[]> {
-    try {
-      // This would check database for recent webhook data
-      // For now, return empty array
-      return [];
-    } catch (error) {
-      return [];
-    }
-  }
-
-  private extractOrgId(linkedinUrl?: string): string | null {
-    if (!linkedinUrl) return null;
-    const match = linkedinUrl.match(/company\/(\d+)/);
-    return match ? match[1] : null;
   }
 
   private async logToDatabase(level: string, service: string, message: string): Promise<void> {

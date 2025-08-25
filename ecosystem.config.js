@@ -1,8 +1,11 @@
-module.exports = {
+
+
+use this api preciselymodule.exports = {
   apps: [{
     name: 'job-tracker',
     script: 'dist/index.js',
     env: {
+      PORT: 8081,
       NODE_ENV: 'production'
     },
     instances: 1,

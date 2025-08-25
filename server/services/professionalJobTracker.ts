@@ -1,14 +1,28 @@
 import type { Company, InsertJobPosting } from '@shared/schema';
 import { storage } from '../storage';
-import puppeteer from 'puppeteer';
+import { JobScraperService } from './jobScraperService';
+import { FinalGoogleSheets } from './finalGoogleSheets';
 
 export class ProfessionalJobTracker {
   private customSearchKey: string;
   private customSearchEngineId: string;
+  private jobScraperService: JobScraperService;
+  private googleSheetsService: FinalGoogleSheets;
 
   constructor() {
     this.customSearchKey = process.env.GOOGLE_CUSTOM_SEARCH_API_KEY || '';
     this.customSearchEngineId = process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID || '';
+    this.jobScraperService = new JobScraperService();
+    this.googleSheetsService = new FinalGoogleSheets();
+  }
+
+  async trackJobs(): Promise<void> {
+    const companies = await this.googleSheetsService.getCompanyData();
+    for (const company of companies) {
+      if (company.trackJobs) {
+        await this.trackCompanyJobs(company);
+      }
+    }
   }
 
   async trackCompanyJobs(company: Company): Promise<InsertJobPosting[]> {
@@ -20,8 +34,8 @@ export class ProfessionalJobTracker {
 
     try {
       // 1. Direct career page scraping
-      if (company.careerPageUrl || company.website) {
-        const careerJobs = await this.scrapeCareerPage(company);
+      if (company.careerPage) {
+        const careerJobs = await this.jobScraperService.scrapeCompanyJobs(company);
         jobs.push(...careerJobs);
       }
 
@@ -38,6 +52,13 @@ export class ProfessionalJobTracker {
       jobs.push(...jobBoardJobs);
 
       const uniqueJobs = this.deduplicateJobs(jobs);
+
+      for (const job of uniqueJobs) {
+        const exists = await this.googleSheetsService.checkJobExists(job.company, job.jobTitle, job.department);
+        if (!exists) {
+          await this.googleSheetsService.updateJobPostings(job);
+        }
+      }
       
       const resultMessage = `✅ Found ${uniqueJobs.length} jobs for ${company.name}`;
       console.log(resultMessage);
@@ -49,70 +70,6 @@ export class ProfessionalJobTracker {
       const errorMessage = `❌ Job tracking error for ${company.name}: ${error}`;
       console.error(errorMessage);
       await this.logToDatabase('error', 'job_tracker', errorMessage);
-      return [];
-    }
-  }
-
-  private async scrapeCareerPage(company: Company): Promise<InsertJobPosting[]> {
-    const url = company.careerPageUrl || company.website;
-    if (!url) return [];
-
-    try {
-      const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-      });
-      
-      const page = await browser.newPage();
-      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
-      
-      await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
-      
-      // Extract job listings using common selectors
-      const jobs = await page.evaluate((companyName) => {
-        const jobElements = document.querySelectorAll([
-          '.job-listing',
-          '.job-item',
-          '.position',
-          '.career-item',
-          '[data-job]',
-          '.job-card',
-          '.opening'
-        ].join(','));
-
-        const extractedJobs = [];
-
-        jobElements.forEach(element => {
-          const titleEl = element.querySelector('h1, h2, h3, h4, .title, .job-title, .position-title');
-          const locationEl = element.querySelector('.location, .job-location, .city');
-          const typeEl = element.querySelector('.type, .job-type, .employment-type');
-          const linkEl = element.querySelector('a');
-
-          if (titleEl && titleEl.textContent) {
-            extractedJobs.push({
-              jobTitle: titleEl.textContent.trim(),
-              company: companyName,
-              location: locationEl?.textContent?.trim() || 'Not specified',
-              jobType: typeEl?.textContent?.trim() || 'Full-time',
-              description: element.textContent?.substring(0, 500) || '',
-              requirements: '',
-              salary: null,
-              postedDate: new Date(),
-              applicationUrl: linkEl?.href || '',
-              source: 'career_page',
-              foundDate: new Date()
-            });
-          }
-        });
-
-        return extractedJobs;
-      }, company.name);
-
-      await browser.close();
-      return jobs;
-
-    } catch (error) {
-      console.warn(`Career page scraping failed for ${company.name}:`, error);
       return [];
     }
   }
@@ -199,7 +156,6 @@ export class ProfessionalJobTracker {
     const title = item.title;
     const snippet = item.snippet;
     
-    // Extract job title from LinkedIn format
     const jobTitleMatch = title.match(/^(.+?)\s*-\s*(.+?)\s*\|\s*LinkedIn/i);
     if (!jobTitleMatch) return null;
 
@@ -226,7 +182,6 @@ export class ProfessionalJobTracker {
     const title = item.title;
     const snippet = item.snippet;
     
-    // Extract job title from Google Jobs format
     const jobTitleMatch = title.match(/^(.+?)\s*(?:-|at)\s*(.+?)(?:\s*\||$)/i);
     if (!jobTitleMatch) return null;
 
@@ -253,7 +208,6 @@ export class ProfessionalJobTracker {
     const title = item.title;
     const snippet = item.snippet;
     
-    // Extract job title from job board format
     const jobTitleMatch = title.match(/^(.+?)\s*(?:-|at|@)\s*(.+?)(?:\s*\||$)/i);
     if (!jobTitleMatch) return null;
 
